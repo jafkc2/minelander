@@ -1,0 +1,24 @@
+[package]
+name = "siglauncher"
+version = "0.5.3"
+edition = "2021"
+authors = ["JafKc"]
+repository = "https://github.com/JafKc/siglauncher"
+build = "build.rs"
+
+[profile.release]
+strip = true
+lto = true
+
+[dependencies]
+iced = { version = "0.10", features = ["tokio", "svg", "image"] }
+reqwest = {version = "0.11.22"}
+serde = { version = "1.0.192", features = ["derive"] }
+serde_json = "1.0.108"
+open = "5.0.0"
+zip = "0.6.6"
+uuid = { version = "1.5.0", features = ["v4"] }
+md5 = "0.7.0"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
