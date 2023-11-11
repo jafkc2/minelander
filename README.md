@@ -1,3 +1,5 @@
+continuation of https://github.com/JafKC/siglauncher, as I lost my account
+
 # Siglauncher
 This is Siglauncher, a Minecraft launcher made with Rust and the Iced GUI library. 
 The launcher is compatible with Vanilla, Fabric, and Forge, and is designed to run on both Windows and Linux.
@@ -21,7 +23,7 @@ Note: For now the launcher only works in offline mode.
 Requires Git and Rust to be installed. Type the following commands:
 
 ```bash
-git clone https://github.com/JafKc/siglauncher.git
+git clone https://github.com/jafkc2/siglauncher.git
 ```
 ```bash
 cd siglauncher
@@ -32,7 +34,7 @@ cargo build --release
 The executable will appear inside **target/release**.
 
 ###### Release method
-Download from [releases](https://github.com/JafKc/siglauncher/releases).
+Download from [releases](https://github.com/Jafkc2/siglauncher/releases).
 
 Releases may be outdated and lack newer features.
 
