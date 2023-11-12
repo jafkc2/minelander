@@ -8,6 +8,7 @@ use iced::{
     },
     window, Alignment, Application, Command, Length, Settings, Subscription,
 };
+use launcher::get_minecraft_dir;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 use std::fs::File;
@@ -26,6 +27,14 @@ mod launcher;
 mod theme;
 
 fn main() -> iced::Result {
+    if !Path::new(&get_minecraft_dir()).exists(){
+        match fs::create_dir_all(&get_minecraft_dir()){
+            Ok(_) => println!("Minecraft directory was created."),
+            Err(e) => println!("Failed to create Minecraft directory: {e}"),
+        };
+    }
+
+
     let icon = include_bytes!("icons/siglauncher.png");
 
     Siglauncher::run(Settings {
