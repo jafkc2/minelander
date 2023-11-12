@@ -61,6 +61,8 @@ pub struct GameSettings {
 async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
     match state {
         State::Checking(game_settings) => {
+            println!("nacama nasso");
+
             let game_settings = game_settings.unwrap();
             let minecraft_dir = get_minecraft_dir();
             let version_dir = format!("{}/versions/{}", minecraft_dir, game_settings.game_version);
@@ -113,8 +115,42 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 }
             }
 
+            let is_natives_folder_empty = match fs::read_dir(format!("{}/natives", version_dir)) {
+                Ok(ok) => ok.count() == 0,
+                Err(_) => {
+                    println!("Natives folder not found, ignoring.");
+
+                    false
+                }
+            };
+
+            let mut missing_files_list = Vec::new();
+
             let modded = !p["inheritsFrom"].is_null();
             if modded {
+                match super::downloader::get_libraries(
+                    &minecraft_dir,
+                    p["libraries"].as_array().unwrap(),
+                    &version_dir,
+                ) {
+                    Ok(ok) => {
+                        for i in ok {
+                            if !Path::new(&i.path).exists() {
+                                if i.path.contains("natives.jar") {
+                                    if is_natives_folder_empty {
+                                        missing_files_list.push(i);
+                                        continue;
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                                missing_files_list.push(i);
+                            }
+                        }
+                    }
+                    Err(e) => println!("Failed to get libraries, ignoring. -> {e}"),
+                }
+
                 let mut vanilla_json_content = String::new();
 
                 let mut vanilla_json_file = match File::open(format!(
@@ -137,7 +173,6 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
 
             // check for missing libraries, natives, assets and client jar
 
-            let mut missing_files_list = Vec::new();
             let version_jar_path = format!(
                 "{}/versions/{}/{}.jar",
                 minecraft_dir, game_settings.game_version, game_settings.game_version
@@ -152,15 +187,6 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                         .to_string(),
                 })
             }
-
-            let is_natives_folder_empty = match fs::read_dir(format!("{}/natives", version_dir)) {
-                Ok(ok) => ok.count() == 0,
-                Err(_) => {
-                    println!("Natives folder not found, ignoring.");
-
-                    false
-                }
-            };
 
             match super::downloader::get_libraries(
                 &minecraft_dir,

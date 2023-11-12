@@ -27,13 +27,12 @@ mod launcher;
 mod theme;
 
 fn main() -> iced::Result {
-    if !Path::new(&get_minecraft_dir()).exists(){
-        match fs::create_dir_all(&get_minecraft_dir()){
+    if !Path::new(&get_minecraft_dir()).exists() {
+        match fs::create_dir_all(&get_minecraft_dir()) {
             Ok(_) => println!("Minecraft directory was created."),
             Err(e) => println!("Failed to create Minecraft directory: {e}"),
         };
     }
-
 
     let icon = include_bytes!("icons/siglauncher.png");
 
