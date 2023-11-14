@@ -633,7 +633,7 @@ impl Application for Siglauncher {
                 Command::none()
             }
             Message::GithubButtonPressed => {
-                open::that("https://github.com/JafKc/siglauncher").unwrap();
+                open::that("https://github.com/jafkc2/siglauncher").unwrap();
                 Command::none()
             }
 
