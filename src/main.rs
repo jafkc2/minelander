@@ -403,6 +403,7 @@ impl Application for Siglauncher {
                         self.current_java_name.clone(),
                         self.current_game_profile.clone(),
                         self.game_wrapper_commands.clone(),
+                        self.game_enviroment_variables,
                         self.show_all_versions_in_download_list,
                     )
                     .unwrap();
@@ -1273,7 +1274,8 @@ fn updatesettingsfile(
     ram: f64,
     currentjvm: String,
     current_game_profile: String,
-    env_var: String,
+    wrapper_commands: String,
+    env_variables: String,
     showallversions: bool,
 ) -> std::io::Result<()> {
     set_current_dir(env::current_exe().unwrap().parent().unwrap()).unwrap();
@@ -1287,7 +1289,7 @@ fn updatesettingsfile(
     data["game_ram"] = serde_json::Value::Number(Number::from_f64(ram).unwrap());
     data["current_java_name"] = serde_json::Value::String(currentjvm);
     data["current_game_profile"] = serde_json::Value::String(current_game_profile);
-    data["game_wrapper_commands"] = serde_json::Value::String(env_var);
+    data["game_wrapper_commands"] = serde_json::Value::String(wrapper_commands);
     data["show_all_versions"] = serde_json::Value::Bool(showallversions);
 
     let serialized = serde_json::to_string_pretty(&data)?;
