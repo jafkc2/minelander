@@ -61,8 +61,6 @@ pub struct GameSettings {
 async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
     match state {
         State::Checking(game_settings) => {
-            println!("nacama nasso");
-
             let game_settings = game_settings.unwrap();
             let minecraft_dir = get_minecraft_dir();
             let version_dir = format!("{}/versions/{}", minecraft_dir, game_settings.game_version);

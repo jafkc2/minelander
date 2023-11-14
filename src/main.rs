@@ -2,11 +2,13 @@
 use self::widget::Element;
 use iced::{
     alignment, executor,
+    subscription::events_with,
     widget::{
         button, column, container, pick_list, row, scrollable, slider, svg, text, text_input,
         toggler, tooltip, Button,
     },
-    window, Alignment, Application, Command, Length, Settings, Subscription,
+    window::{self},
+    Alignment, Application, Command, Length, Settings, Subscription,
 };
 use launcher::get_minecraft_dir;
 use serde::{Deserialize, Serialize};
@@ -44,6 +46,7 @@ fn main() -> iced::Result {
 
             ..window::Settings::default()
         },
+        exit_on_close_request: false,
 
         ..Settings::default()
     })
@@ -139,6 +142,8 @@ enum Message {
     GameProfileAdded,
 
     GithubButtonPressed,
+
+    Exit,
 }
 
 impl Siglauncher {
@@ -403,7 +408,7 @@ impl Application for Siglauncher {
                         self.current_java_name.clone(),
                         self.current_game_profile.clone(),
                         self.game_wrapper_commands.clone(),
-                        self.game_enviroment_variables,
+                        self.game_enviroment_variables.clone(),
                         self.show_all_versions_in_download_list,
                     )
                     .unwrap();
@@ -732,6 +737,11 @@ impl Application for Siglauncher {
             Message::GameEnviromentVariablesChanged(s) => {
                 self.game_enviroment_variables = s;
                 Command::none()
+            }
+            Message::Exit => {
+                self.launcher.state = LauncherState::Idle;
+                self.downloaders.clear();
+                return window::close();
             }
         }
     }
@@ -1159,6 +1169,13 @@ impl Application for Siglauncher {
         }
         subscriptions.push(self.launcher.subscription());
 
+        let events = events_with(|event, _status| match event {
+            iced::Event::Window(window::Event::CloseRequested) => Some(Message::Exit),
+            _ => None,
+        });
+
+        subscriptions.push(events);
+
         Subscription::batch(subscriptions)
     }
 }
@@ -1291,6 +1308,7 @@ fn updatesettingsfile(
     data["current_game_profile"] = serde_json::Value::String(current_game_profile);
     data["game_wrapper_commands"] = serde_json::Value::String(wrapper_commands);
     data["show_all_versions"] = serde_json::Value::Bool(showallversions);
+    data["game_enviroment_variables"] = serde_json::Value::String(env_variables);
 
     let serialized = serde_json::to_string_pretty(&data)?;
 
