@@ -438,6 +438,10 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 .args(version_game_args.clone());
             game_command.envs(game_settings.enviroment_variables);
 
+            if cfg!(debug_assertions) {
+                println!("{:?}", game_command)
+            }
+
             if command_exists(game_command.get_program().to_str().unwrap()) {
                 let game_process_receiver = run_and_log_game(game_command);
                 if let Ok(game_pr_rec) = game_process_receiver.await {
@@ -762,11 +766,7 @@ fn libmanager(p: &Value) -> String {
                 let firstpiece = lpieces[0].replace('.', "/");
                 lpieces.remove(0);
 
-                let lib_type = if library["name"]
-                    .as_str()
-                    .unwrap()
-                    .contains(&format!("natives-{}", os))
-                {
+                let lib_type = if libraryname.contains(&format!("natives-{}", os)) {
                     LibraryType::Natives
                 } else if library["natives"][os].is_null() {
                     LibraryType::Normal
@@ -805,6 +805,10 @@ fn libmanager(p: &Value) -> String {
                         library_list.push(separator);
                     }
                     LibraryType::Old => {
+                        if libraryname == "tv.twitch:twitch-platform:6.5" {
+                            continue;
+                        }
+
                         let libpath = format!(
                             "{}{}/{}/{}-{}-natives-{}.jar",
                             lib_dir,
