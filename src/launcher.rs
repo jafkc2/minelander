@@ -863,6 +863,14 @@ fn modded(
         }
 
         modded_game_args = get_game_args(base_arguments, &gamedata)
+    } else if let Some(arguments) = vjson["minecraftArguments"].as_str() {
+        let oldargs: Vec<String> = arguments
+            .to_string()
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+
+        modded_game_args.extend_from_slice(&get_game_args(oldargs, &gamedata))
     }
 
     let vanilla_version_jvm_args = get_game_jvm_args(
