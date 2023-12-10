@@ -1454,3 +1454,13 @@ fn get_config_file_path() -> String {
         launcher::get_minecraft_dir()
     );
 }
+
+fn is_file_empty(file_path: &str) -> bool {
+    let mut file = File::open(file_path).unwrap();
+    let mut buffer = [0; 1]; 
+
+    match file.read(&mut buffer).unwrap() {
+        0 => true, 
+        _ => false, 
+    }
+}

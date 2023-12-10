@@ -176,7 +176,7 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 minecraft_dir, game_settings.game_version, game_settings.game_version
             );
 
-            if !Path::new(&version_jar_path).exists() {
+            if !Path::new(&version_jar_path).exists() || (Path::new(&version_jar_path).exists() && super::is_file_empty(&version_jar_path)) {
                 missing_files_list.push(super::downloader::Download {
                     path: version_jar_path,
                     url: p["downloads"]["client"]["url"]
