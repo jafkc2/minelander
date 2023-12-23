@@ -89,27 +89,50 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             let mut p: Value = content.unwrap();
 
             // check for missing json
+
             if let Some(vanilla_ver) = p["inheritsFrom"].as_str() {
-                if !Path::new(&format!(
+                let json_path = format!(
                     "{}/versions/{}/{}.json",
                     minecraft_dir, game_settings.game_version, vanilla_ver
-                ))
-                .exists()
-                {
-                    println!("Vanilla Json needs to be downloaded.");
-                    return (
-                        (
-                            id,
-                            Progress::Checked(Some(Missing::VanillaJson(
-                                vanilla_ver.to_string(),
-                                format!(
-                                    "{}/versions/{}",
-                                    minecraft_dir, game_settings.game_version
-                                ),
-                            ))),
-                        ),
-                        State::Idle,
-                    );
+                );
+
+                if !Path::new(&json_path).exists() {
+                    if Path::new(&format!(
+                        "{}/versions/{}/{}.json",
+                        minecraft_dir, vanilla_ver, vanilla_ver
+                    ))
+                    .exists()
+                    {
+                        let mut needed_json = File::open(&format!(
+                            "{}/versions/{}/{}.json",
+                            minecraft_dir, vanilla_ver, vanilla_ver
+                        ))
+                        .unwrap();
+
+                        let mut needed_json_content = Vec::new();
+
+                        needed_json.read_to_end(&mut needed_json_content).unwrap();
+
+                        File::create(&json_path)
+                            .unwrap()
+                            .write_all(&needed_json_content)
+                            .unwrap();
+                    } else {
+                        println!("Vanilla Json needs to be downloaded.");
+                        return (
+                            (
+                                id,
+                                Progress::Checked(Some(Missing::VanillaJson(
+                                    vanilla_ver.to_string(),
+                                    format!(
+                                        "{}/versions/{}",
+                                        minecraft_dir, game_settings.game_version
+                                    ),
+                                ))),
+                            ),
+                            State::Idle,
+                        );
+                    }
                 }
             }
 
@@ -176,7 +199,10 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 minecraft_dir, game_settings.game_version, game_settings.game_version
             );
 
-            if !Path::new(&version_jar_path).exists() || (Path::new(&version_jar_path).exists() && super::is_file_empty(&version_jar_path)) {
+            if !Path::new(&version_jar_path).exists()
+                || (Path::new(&version_jar_path).exists()
+                    && super::is_file_empty(&version_jar_path))
+            {
                 missing_files_list.push(super::downloader::Download {
                     path: version_jar_path,
                     url: p["downloads"]["client"]["url"]
@@ -863,17 +889,16 @@ fn modded(
         }
 
         modded_game_args = get_game_args(base_arguments, &gamedata)
-    } else if let Some(arguments) = vjson["minecraftArguments"].as_str(){
-        if p["minecraftArguments"].is_null(){
+    } else if let Some(arguments) = vjson["minecraftArguments"].as_str() {
+        if p["minecraftArguments"].is_null() {
             let oldargs: Vec<String> = arguments
-            .to_string()
-            .split_whitespace()
-            .map(String::from)
-            .collect();
+                .to_string()
+                .split_whitespace()
+                .map(String::from)
+                .collect();
 
-        modded_game_args.extend_from_slice(&get_game_args(oldargs, &gamedata))
+            modded_game_args.extend_from_slice(&get_game_args(oldargs, &gamedata))
         }
-        
     }
 
     let vanilla_version_jvm_args = get_game_jvm_args(

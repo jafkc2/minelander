@@ -905,11 +905,11 @@ pub fn get_libraries(
 }
 
 fn get_library_url(unmodifiedurl: &str, lib: String) -> String {
-    if unmodifiedurl.ends_with('/'){
+    if unmodifiedurl.ends_with('/') {
         format!("{}{}", unmodifiedurl, lib)
     } else if unmodifiedurl.is_empty() {
         format!("https://libraries.minecraft.net/{}", lib)
-    } else{
+    } else {
         unmodifiedurl.to_string()
     }
 }
