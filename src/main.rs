@@ -177,6 +177,14 @@ impl Siglauncher {
             HashMap::new()
         };
 
+        let java_type = match self.current_java_name.as_str() {
+            "Automatic" => launcher::JavaType::Automatic,
+            "System java" => launcher::JavaType::System,
+            "Java 8 (siglauncher)" => launcher::JavaType::LauncherJava8,
+            "Java 17 (siglauncher)" => launcher::JavaType::LauncherJava17,
+            _ => launcher::JavaType::Custom,
+        };
+
         let game_settings = launcher::GameSettings {
             username: self.username.clone(),
             game_version: self.current_version.clone(),
@@ -190,7 +198,7 @@ impl Siglauncher {
             ram: self.game_ram,
             game_wrapper_commands: wrapper_commands_vec,
             game_directory: self.current_game_profile.clone(),
-            autojava: self.current_java_name == "Automatic",
+            java_type: java_type,
             enviroment_variables: enviroment_variables_hash_map,
         };
         self.launcher.start(game_settings);
@@ -232,6 +240,11 @@ impl Application for Siglauncher {
                 }
             }
         }
+
+        jvmnames.push("Automatic".to_owned());
+        jvmnames.push("System Java".to_owned());
+        jvmnames.push("Java 8 (siglauncher)".to_owned());
+        jvmnames.push("Java 17 (siglauncher)".to_owned());
         // Get Java info
 
         // Game profile folder creation if it doesn't exist

@@ -36,6 +36,15 @@ pub enum Missing {
     VanillaJson(String, String),
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum JavaType {
+    System,
+    Custom,
+    LauncherJava8,
+    LauncherJava17,
+    Automatic,
+}
+
 pub fn start<I: 'static + Hash + Copy + Send + Sync>(
     id: I,
     game_settings: Option<&GameSettings>,
@@ -54,7 +63,7 @@ pub struct GameSettings {
     pub jvmargs: Vec<String>,
     pub ram: f64,
     pub game_directory: String,
-    pub autojava: bool,
+    pub java_type: JavaType,
     pub game_wrapper_commands: Vec<String>,
     pub enviroment_variables: HashMap<String, String>,
 }
@@ -297,24 +306,40 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 );
             }
             // check for java
-            if game_settings.autojava {
-                let java_version = if let Some(java) = p["javaVersion"]["majorVersion"].as_i64() {
-                    java
-                } else if let Some(java) = p["javaVersion"]["Version"].as_i64() {
-                    java
-                } else {
-                    17
-                };
-
-                if java_version > 8
-                    && !Path::new(&format!("{}/siglauncher_java/java17", minecraft_dir)).exists()
-                {
-                    return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
-                } else if java_version == 8
-                    && !Path::new(&format!("{}/siglauncher_java/java8", minecraft_dir)).exists()
-                {
-                    return ((id, Progress::Checked(Some(Missing::Java8))), State::Idle);
+            match game_settings.java_type {
+                JavaType::LauncherJava8 => {
+                    if !Path::new(&format!("{}/siglauncher_java/java8", minecraft_dir)).exists() {
+                        return ((id, Progress::Checked(Some(Missing::Java8))), State::Idle);
+                    }
                 }
+                JavaType::LauncherJava17 => {
+                    if !Path::new(&format!("{}/siglauncher_java/java17", minecraft_dir)).exists() {
+                        return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
+                    }
+                }
+                JavaType::Automatic => {
+                    let java_version = if let Some(java) = p["javaVersion"]["majorVersion"].as_i64()
+                    {
+                        java
+                    } else if let Some(java) = p["javaVersion"]["Version"].as_i64() {
+                        java
+                    } else {
+                        17
+                    };
+
+                    if java_version > 8
+                        && !Path::new(&format!("{}/siglauncher_java/java17", minecraft_dir))
+                            .exists()
+                    {
+                        return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
+                    } else if java_version == 8
+                        && !Path::new(&format!("{}/siglauncher_java/java8", minecraft_dir)).exists()
+                    {
+                        return ((id, Progress::Checked(Some(Missing::Java8))), State::Idle);
+                    }
+                }
+
+                _ => {}
             }
 
             (
@@ -405,12 +430,28 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 false
             };
 
-            let (java_path, java_args) = match game_settings.autojava {
-                true => automatic_java(p.clone(), &game_settings.game_version, is_modded),
-                false => (
-                    format!("{}{}", game_settings.jvm, std::env::consts::EXE_SUFFIX),
-                    game_settings.jvmargs,
-                ),
+            let (java_path, java_args) = match game_settings.java_type{
+                JavaType::System => ("java".to_owned(), get_vec_from("-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3")),
+                JavaType::Custom => (game_settings.jvm, game_settings.jvmargs),
+                JavaType::LauncherJava8 => {
+                    let args = get_vec_from("-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+ParallelRefProcEnabled -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:+AggressiveOpts -XX:MaxInlineLevel=15 -XX:MaxVectorSize=32 -XX:ThreadPriorityPolicy=1 -XX:+UseNUMA -XX:+UseDynamicNumberOfGCThreads -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=350M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -Dgraal.CompilerConfiguration=community");
+
+                    if std::env::consts::OS == "windows"{
+                        (format!("{}/siglauncher_java/java8/bin/javaw.exe", minecraft_directory), args) 
+                    } else {
+                        (format!("{}/siglauncher_java/java8/bin/java", minecraft_directory), args)
+                    }
+                },
+                JavaType::LauncherJava17 => {
+                    let args = get_vec_from("-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3");
+
+                    if std::env::consts::OS == "windows"{
+                        (format!("{}/siglauncher_java/java17/bin/javaw.exe", minecraft_directory), args)    
+                    } else {
+                        (format!("{}/siglauncher_java/java17/bin/java", minecraft_directory), args)
+                    }
+                },
+                JavaType::Automatic => automatic_java(p.clone(), &game_settings.game_version, is_modded),
             };
 
             library_list.push_str(&format!(
@@ -968,4 +1009,8 @@ fn generate_uuid(username: &str) -> String {
     let hash = md5::compute(username.as_bytes());
     let uuid = Uuid::from_slice(hash.as_slice()).unwrap();
     uuid.to_string()
+}
+
+fn get_vec_from(str: &str) -> Vec<String> {
+    str.split(' ').map(|s| s.to_owned()).collect()
 }
