@@ -229,12 +229,13 @@ impl Application for Siglauncher {
             path: String::new(),
             flags: String::new(),
         };
+        currentjava.name = p["current_java_name"].as_str().unwrap().to_string();
+        
         let mut jvmnames: Vec<String> = Vec::new();
         if let Some(jvms) = p["JVMs"].as_array() {
             for jvm in jvms {
                 jvmnames.push(jvm["name"].as_str().unwrap().to_owned());
                 if jvm["name"] == p["current_java_name"] {
-                    currentjava.name = jvm["name"].as_str().unwrap().to_owned();
                     currentjava.path = jvm["path"].as_str().unwrap().to_owned();
                     currentjava.flags = jvm["flags"].as_str().unwrap().to_owned();
                 }
@@ -470,24 +471,35 @@ impl Application for Siglauncher {
             Message::JavaChanged(selected_jvm_name) => {
                 set_current_dir(env::current_exe().unwrap().parent().unwrap()).unwrap();
 
-                let mut file = File::open(get_config_file_path()).unwrap();
-                let mut fcontent = String::new();
-                file.read_to_string(&mut fcontent).unwrap();
-                let content = serde_json::from_str(&fcontent);
-                let p: Value = content.unwrap();
-
                 let mut newjvm: Vec<String> = Vec::new();
-
                 let mut newjvmname: String = String::new();
 
-                if let Some(jvms) = p["JVMs"].as_array() {
-                    for jvm in jvms {
-                        if jvm["name"] == selected_jvm_name {
-                            newjvm.push(jvm["name"].as_str().unwrap().to_owned());
-                            newjvm.push(jvm["path"].as_str().unwrap().to_owned());
-                            newjvm.push(jvm["flags"].as_str().unwrap().to_owned());
+                if selected_jvm_name.as_str() == "System Java"
+                    || selected_jvm_name.as_str() == "Automatic"
+                    || selected_jvm_name.as_str() == "Java 8 (siglauncher)"
+                    || selected_jvm_name.as_str() == "Java 17 (siglauncher)"
+                {
+                    newjvm.push(selected_jvm_name.clone());
+                    newjvm.push(String::new());
+                    newjvm.push(String::new());
 
-                            newjvmname = jvm["name"].as_str().unwrap().to_owned();
+                    newjvmname = selected_jvm_name;
+                } else {
+                    let mut file = File::open(get_config_file_path()).unwrap();
+                    let mut fcontent = String::new();
+                    file.read_to_string(&mut fcontent).unwrap();
+                    let content = serde_json::from_str(&fcontent);
+                    let p: Value = content.unwrap();
+
+                    if let Some(jvms) = p["JVMs"].as_array() {
+                        for jvm in jvms {
+                            if jvm["name"] == selected_jvm_name {
+                                newjvm.push(jvm["name"].as_str().unwrap().to_owned());
+                                newjvm.push(jvm["path"].as_str().unwrap().to_owned());
+                                newjvm.push(jvm["flags"].as_str().unwrap().to_owned());
+
+                                newjvmname = jvm["name"].as_str().unwrap().to_owned();
+                            }
                         }
                     }
                 }
@@ -1211,10 +1223,7 @@ fn checksettingsfile() {
 
     if let Value::Object(map) = &mut conf_json {
         if !map.contains_key("JVMs") {
-            let jvm = vec![
-                Java{name: "Automatic".to_string(), path: String::new(), flags: String::new()},
-                Java{name:"System Java".to_string(),path:"java".to_string(),flags:"-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3".to_string()}
-            ];
+            let jvm: Vec<Java> = vec![];
 
             map.insert("JVMs".to_owned(), serde_json::to_value(jvm).unwrap());
         }
