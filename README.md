@@ -1,7 +1,7 @@
 continuation of https://github.com/JafKC/siglauncher, as I lost my account
 
-# Siglauncher
-This is Siglauncher, a Minecraft launcher made with Rust and the Iced GUI library. 
+# Minelander
+This is Minelander, a Minecraft launcher made with Rust and the Iced GUI library. 
 The launcher is compatible with Vanilla, Fabric, and Forge, and is designed to run on both Windows and Linux.
 
 Note: For now the launcher only works in offline mode.
@@ -23,10 +23,10 @@ Note: For now the launcher only works in offline mode.
 Requires Git and Rust to be installed. Type the following commands:
 
 ```bash
-git clone https://github.com/jafkc2/siglauncher.git
+git clone https://github.com/jafkc2/minelander.git
 ```
 ```bash
-cd siglauncher
+cd minelander
 ```
 ```bash
 cargo build --release
@@ -34,7 +34,7 @@ cargo build --release
 The executable will appear inside **target/release**.
 
 ###### Release method
-Download from [releases](https://github.com/Jafkc2/siglauncher/releases).
+Download from [releases](https://github.com/Jafkc2/minelander/releases).
 
 Releases may be outdated and lack newer features.
 

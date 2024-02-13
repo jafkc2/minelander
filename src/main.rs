@@ -36,9 +36,9 @@ fn main() -> iced::Result {
         };
     }
 
-    let icon = include_bytes!("icons/siglauncher.png");
+    let icon = include_bytes!("icons/Minelander.png");
 
-    Siglauncher::run(Settings {
+    Minelander::run(Settings {
         window: window::Settings {
             size: (800, 450),
             resizable: false,
@@ -53,7 +53,7 @@ fn main() -> iced::Result {
 }
 
 #[derive(Default)]
-struct Siglauncher {
+struct Minelander {
     screen: Screen,
     launcher: Launcher,
     downloaders: Vec<Downloader>,
@@ -146,7 +146,7 @@ enum Message {
     Exit,
 }
 
-impl Siglauncher {
+impl Minelander {
     pub fn launch(&mut self) {
         if updateusersettingsfile(self.username.clone(), self.current_version.clone()).is_err() {
             println!("Failed to save user settings!")
@@ -180,8 +180,8 @@ impl Siglauncher {
         let java_type = match self.current_java_name.as_str() {
             "Automatic" => launcher::JavaType::Automatic,
             "System java" => launcher::JavaType::System,
-            "Java 8 (siglauncher)" => launcher::JavaType::LauncherJava8,
-            "Java 17 (siglauncher)" => launcher::JavaType::LauncherJava17,
+            "Java 8 (Minelander)" => launcher::JavaType::LauncherJava8,
+            "Java 17 (Minelander)" => launcher::JavaType::LauncherJava17,
             _ => launcher::JavaType::Custom,
         };
 
@@ -206,7 +206,7 @@ impl Siglauncher {
     }
 }
 
-impl Application for Siglauncher {
+impl Application for Minelander {
     type Executor = executor::Default;
     type Message = Message;
     type Theme = theme::Theme;
@@ -244,13 +244,13 @@ impl Application for Siglauncher {
 
         jvmnames.push("Automatic".to_owned());
         jvmnames.push("System Java".to_owned());
-        jvmnames.push("Java 8 (siglauncher)".to_owned());
-        jvmnames.push("Java 17 (siglauncher)".to_owned());
+        jvmnames.push("Java 8 (Minelander)".to_owned());
+        jvmnames.push("Java 17 (Minelander)".to_owned());
         // Get Java info
 
         // Game profile folder creation if it doesn't exist
         let mc_dir = launcher::get_minecraft_dir();
-        let game_profile_folder_path = format!("{}/siglauncher_profiles", mc_dir);
+        let game_profile_folder_path = format!("{}/minelander_profiles", mc_dir);
         if !Path::new(&game_profile_folder_path).exists() {
             match fs::create_dir_all(&game_profile_folder_path) {
                 Ok(_) => println!("Created game profiles folder"),
@@ -289,7 +289,7 @@ impl Application for Siglauncher {
         new_game_profile_list.push("Default".to_string());
 
         (
-            Siglauncher {
+            Minelander {
                 screen: Screen::Main,
                 username: p["username"].as_str().unwrap().to_owned(),
                 current_version: p["current_version"].as_str().unwrap().to_owned(),
@@ -313,7 +313,7 @@ impl Application for Siglauncher {
     }
 
     fn title(&self) -> String {
-        String::from("Siglauncher 0.5.3")
+        String::from("Minelander 0.5.3")
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
@@ -460,7 +460,7 @@ impl Application for Siglauncher {
                     open::that(launcher::get_minecraft_dir()).unwrap();
                 } else {
                     open::that(format!(
-                        "{}/siglauncher_profiles/{}",
+                        "{}/minelander_profiles/{}",
                         launcher::get_minecraft_dir(),
                         self.current_game_profile
                     ))
@@ -476,8 +476,8 @@ impl Application for Siglauncher {
 
                 if selected_jvm_name.as_str() == "System Java"
                     || selected_jvm_name.as_str() == "Automatic"
-                    || selected_jvm_name.as_str() == "Java 8 (siglauncher)"
-                    || selected_jvm_name.as_str() == "Java 17 (siglauncher)"
+                    || selected_jvm_name.as_str() == "Java 8 (Minelander)"
+                    || selected_jvm_name.as_str() == "Java 17 (Minelander)"
                 {
                     newjvm.push(selected_jvm_name.clone());
                     newjvm.push(String::new());
@@ -626,14 +626,14 @@ impl Application for Siglauncher {
             Message::GameProfileAdded => {
                 if !self.game_profile_to_add.is_empty() {
                     fs::create_dir_all(format!(
-                        "{}/siglauncher_profiles/{}",
+                        "{}/minelander_profiles/{}",
                         launcher::get_minecraft_dir(),
                         self.game_profile_to_add
                     ))
                     .expect("Failed to create directory!");
 
                     let entries = fs::read_dir(format!(
-                        "{}/siglauncher_profiles",
+                        "{}/minelander_profiles",
                         launcher::get_minecraft_dir()
                     ))
                     .unwrap();
@@ -658,7 +658,7 @@ impl Application for Siglauncher {
                 Command::none()
             }
             Message::GithubButtonPressed => {
-                open::that("https://github.com/jafkc2/siglauncher").unwrap();
+                open::that("https://github.com/jafkc2/minelander").unwrap();
                 Command::none()
             }
 
@@ -859,7 +859,7 @@ impl Application for Siglauncher {
                     //mainscreen
                     //title
                     column![
-                        text("Siglauncher").size(50),
+                        text("minelander").size(50),
                         text(format!("Hello {}!", self.username))
                             .style(theme::Text::Peach)
                             .size(18)
@@ -1466,13 +1466,13 @@ fn getjson(jpathstring: String) -> Value {
 fn get_config_file_path() -> String {
     #[cfg(debug_assertions)]
     return format!(
-        "{}/siglauncher_settings_debug.json",
+        "{}/minelander_settings_debug.json",
         launcher::get_minecraft_dir()
     );
 
     #[cfg(not(debug_assertions))]
     return format!(
-        "{}/siglauncher_settings.json",
+        "{}/minelander_settings.json",
         launcher::get_minecraft_dir()
     );
 }
