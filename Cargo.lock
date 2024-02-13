@@ -1714,6 +1714,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+name = "minelander"
+version = "0.6.0"
+dependencies = [
+ "iced",
+ "md5",
+ "open",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+ "winres",
+ "zip",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2737,21 +2752,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
-]
-
-[[package]]
-name = "siglauncher"
-version = "0.5.3"
-dependencies = [
- "iced",
- "md5",
- "open",
- "reqwest",
- "serde",
- "serde_json",
- "uuid",
- "winres",
- "zip",
 ]
 
 [[package]]
