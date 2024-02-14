@@ -21,8 +21,8 @@ jobs:
     - name: Archive binary
       uses: actions/upload-artifact@v1
       with:
-        name: siglauncher-linux
-        path: target/release/siglauncher
+        name: minelander-linux
+        path: target/release/minelander
 
   build_windows:
 
@@ -40,5 +40,5 @@ jobs:
     - name: Archive binary
       uses: actions/upload-artifact@v1
       with:
-        name: siglauncher-windows
-        path: target/release/siglauncher.exe
+        name: minelander-windows
+        path: target/release/minelander.exe
