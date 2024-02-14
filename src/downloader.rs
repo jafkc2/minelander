@@ -339,7 +339,7 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                 _ => panic!("System not supported."),
             };
 
-            let folder_to_store_download = format!("{}/siglauncher_java", mc_dir);
+            let folder_to_store_download = format!("{}/minelander_java", mc_dir);
 
             match fs::create_dir_all(&folder_to_store_download) {
                 Ok(ok) => ok,

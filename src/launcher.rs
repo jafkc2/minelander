@@ -308,12 +308,12 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             // check for java
             match game_settings.java_type {
                 JavaType::LauncherJava8 => {
-                    if !Path::new(&format!("{}/siglauncher_java/java8", minecraft_dir)).exists() {
+                    if !Path::new(&format!("{}/minelander_java/java8", minecraft_dir)).exists() {
                         return ((id, Progress::Checked(Some(Missing::Java8))), State::Idle);
                     }
                 }
                 JavaType::LauncherJava17 => {
-                    if !Path::new(&format!("{}/siglauncher_java/java17", minecraft_dir)).exists() {
+                    if !Path::new(&format!("{}/minelander_java/java17", minecraft_dir)).exists() {
                         return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
                     }
                 }
@@ -328,12 +328,12 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                     };
 
                     if java_version > 8
-                        && !Path::new(&format!("{}/siglauncher_java/java17", minecraft_dir))
+                        && !Path::new(&format!("{}/minelander_java/java17", minecraft_dir))
                             .exists()
                     {
                         return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
                     } else if java_version == 8
-                        && !Path::new(&format!("{}/siglauncher_java/java8", minecraft_dir)).exists()
+                        && !Path::new(&format!("{}/minelander_java/java8", minecraft_dir)).exists()
                     {
                         return ((id, Progress::Checked(Some(Missing::Java8))), State::Idle);
                     }
@@ -355,7 +355,7 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 minecraft_directory.clone()
             } else {
                 let gamedirpath = format!(
-                    "{}/siglauncher_profiles/{}",
+                    "{}/minelander_profiles/{}",
                     minecraft_directory, game_settings.game_directory
                 );
                 fs::create_dir_all(&gamedirpath).unwrap();
@@ -437,18 +437,18 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                     let args = get_vec_from("-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+ParallelRefProcEnabled -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:+AggressiveOpts -XX:MaxInlineLevel=15 -XX:MaxVectorSize=32 -XX:ThreadPriorityPolicy=1 -XX:+UseNUMA -XX:+UseDynamicNumberOfGCThreads -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=350M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -Dgraal.CompilerConfiguration=community");
 
                     if std::env::consts::OS == "windows"{
-                        (format!("{}/siglauncher_java/java8/bin/javaw.exe", minecraft_directory), args) 
+                        (format!("{}/minelander_java/java8/bin/javaw.exe", minecraft_directory), args) 
                     } else {
-                        (format!("{}/siglauncher_java/java8/bin/java", minecraft_directory), args)
+                        (format!("{}/minelander_java/java8/bin/java", minecraft_directory), args)
                     }
                 },
                 JavaType::LauncherJava17 => {
                     let args = get_vec_from("-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3");
 
                     if std::env::consts::OS == "windows"{
-                        (format!("{}/siglauncher_java/java17/bin/javaw.exe", minecraft_directory), args)    
+                        (format!("{}/minelander_java/java17/bin/javaw.exe", minecraft_directory), args)    
                     } else {
-                        (format!("{}/siglauncher_java/java17/bin/java", minecraft_directory), args)
+                        (format!("{}/minelander_java/java17/bin/java", minecraft_directory), args)
                     }
                 },
                 JavaType::Automatic => automatic_java(p.clone(), &game_settings.game_version, is_modded),
@@ -763,13 +763,13 @@ fn automatic_java(mut p: Value, game_version: &String, ismodded: bool) -> (Strin
 
     let (autojava17path, autojava8path) = if std::env::consts::OS == "windows" {
         (
-            format!("{}/siglauncher_java/java17/bin/javaw.exe", mc_dir),
-            format!("{}/siglauncher_java/java8/bin/javaw.exe", mc_dir),
+            format!("{}/minelander_java/java17/bin/javaw.exe", mc_dir),
+            format!("{}/minelander_java/java8/bin/javaw.exe", mc_dir),
         )
     } else {
         (
-            format!("{}/siglauncher_java/java17/bin/java", mc_dir),
-            format!("{}/siglauncher_java/java8/bin/java", mc_dir),
+            format!("{}/minelander_java/java17/bin/java", mc_dir),
+            format!("{}/minelander_java/java8/bin/java", mc_dir),
         )
     };
 
