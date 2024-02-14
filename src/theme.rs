@@ -2,7 +2,7 @@ use iced::overlay::menu;
 use iced::widget::{
     button, container, pick_list, scrollable, slider, svg, text, text_input, toggler,
 };
-use iced::{application, color, Background, Color};
+use iced::{application, color, Background, Border, Color};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Theme;
@@ -52,7 +52,6 @@ pub enum Container {
     #[default]
     Default,
     BlackContainer,
-    BlackerBlackContainer,
 }
 
 impl container::StyleSheet for Theme {
@@ -64,15 +63,12 @@ impl container::StyleSheet for Theme {
             Container::BlackContainer => container::Appearance {
                 //background: Color::from_rgb8(49, 50, 68),
                 background: Some(Background::Color(Color::from_rgb8(49, 50, 68))),
-                border_radius: 25.0.into(),
+                border: Border {
+                    radius: 25.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
-            },
-            Container::BlackerBlackContainer => container::Appearance {
-                //background: Color::from_rgb8(49, 50, 68),
-                background: Some(Background::Color(Color::from_rgb8(24, 24, 37))),
-                border_radius: 25.0.into(),
-                ..Default::default()
-            },
+            }
         }
     }
 }
@@ -92,14 +88,20 @@ impl button::StyleSheet for Theme {
         match style {
             Button::Primary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(30, 102, 245))),
-                border_radius: 15.0.into(),
-                border_width: 1.0,
-                border_color: color!(30, 102, 245),
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 1.0,
+                    color: color!(30, 102, 245),
+                },
+
                 ..Default::default()
             },
             Button::Secondary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(5, 194, 112))),
-                border_radius: 15.0.into(),
+                border: Border {
+                    radius: 15.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Button::Transparent => button::Appearance {
@@ -113,21 +115,30 @@ impl button::StyleSheet for Theme {
         match style {
             Button::Primary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(30, 102, 245))),
-                border_radius: 15.0.into(),
-                border_width: 1.0,
-                border_color: Color::from_rgb8(205, 214, 244),
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 1.0,
+                    color: Color::from_rgb8(205, 214, 244),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Button::Secondary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(5, 194, 112))),
-                border_radius: 15.0.into(),
-                border_width: 1.0,
-                border_color: Color::from_rgb8(205, 214, 244),
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 1.0,
+                    color: Color::from_rgb8(205, 214, 244),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Button::Transparent => button::Appearance {
                 background: Some(Background::Color(Color::TRANSPARENT)),
-                border_radius: 100.0.into(),
+                border: Border {
+                    radius: 100.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         }
@@ -137,14 +148,20 @@ impl button::StyleSheet for Theme {
         match style {
             Button::Primary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(46, 59, 98))),
-                border_radius: 15.0.into(),
-                border_width: 1.0,
-                border_color: color!(46, 59, 98),
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 1.0,
+                    color: Color::from_rgb8(46, 59, 98),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Button::Secondary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(5, 194, 112))),
-                border_radius: 15.0.into(),
+                border: Border {
+                    radius: 15.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Button::Transparent => button::Appearance {
@@ -167,9 +184,12 @@ impl text_input::StyleSheet for Theme {
     fn active(&self, _style: &Self::Style) -> text_input::Appearance {
         text_input::Appearance {
             background: iced::Background::Color(Color::from_rgb8(49, 50, 68)),
-            border_radius: 15.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgb8(49, 50, 68),
+            border: Border {
+                radius: 15.0.into(),
+                width: 1.0,
+                color: Color::from_rgb8(49, 50, 68),
+                ..Default::default()
+            },
             icon_color: Color::from_rgb8(205, 214, 244),
         }
     }
@@ -177,9 +197,12 @@ impl text_input::StyleSheet for Theme {
     fn hovered(&self, _style: &Self::Style) -> text_input::Appearance {
         text_input::Appearance {
             background: iced::Background::Color(Color::from_rgb8(49, 50, 68)),
-            border_radius: 15.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgb8(205, 214, 244),
+            border: Border {
+                radius: 15.0.into(),
+                width: 1.0,
+                color: Color::from_rgb8(205, 214, 244),
+                ..Default::default()
+            },
             icon_color: Color::from_rgb8(205, 214, 244),
         }
     }
@@ -187,9 +210,12 @@ impl text_input::StyleSheet for Theme {
     fn focused(&self, _style: &Self::Style) -> text_input::Appearance {
         text_input::Appearance {
             background: iced::Background::Color(Color::from_rgb8(49, 50, 68)),
-            border_radius: 15.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgb8(205, 214, 244),
+            border: Border {
+                radius: 15.0.into(),
+                width: 1.0,
+                color: Color::from_rgb8(205, 214, 244),
+                ..Default::default()
+            },
             icon_color: Color::from_rgb8(205, 214, 244),
         }
     }
@@ -213,13 +239,16 @@ impl text_input::StyleSheet for Theme {
                 0x22 as f32 / 255.0,
                 0x25 as f32 / 255.0,
             )),
-            border_radius: 15.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgb(
-                0x20 as f32 / 255.0,
-                0x22 as f32 / 255.0,
-                0x25 as f32 / 255.0,
-            ),
+            border: Border {
+                radius: 15.0.into(),
+                width: 1.0,
+                color: Color::from_rgb(
+                    0x20 as f32 / 255.0,
+                    0x22 as f32 / 255.0,
+                    0x25 as f32 / 255.0,
+                ),
+                ..Default::default()
+            },
             icon_color: Color::from_rgb8(205, 214, 244),
         }
     }
@@ -249,9 +278,12 @@ impl pick_list::StyleSheet for Theme {
                     0x25 as f32 / 255.0,
                 ),
                 handle_color: Color::from_rgb8(205, 214, 244),
-                border_radius: 15.0.into(),
-                border_width: 1.0,
-                border_color: Color::from_rgb8(49, 50, 68),
+
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 1.0,
+                    color: Color::from_rgb8(49, 50, 68),
+                },
             },
         }
     }
@@ -266,9 +298,12 @@ impl pick_list::StyleSheet for Theme {
                 0x25 as f32 / 255.0,
             ),
             handle_color: Color::from_rgb8(205, 214, 244),
-            border_radius: 15.0.into(),
-            border_width: 1.0,
-            border_color: Color::from_rgb8(205, 214, 244),
+
+            border: Border {
+                radius: 15.0.into(),
+                width: 1.0,
+                color: Color::from_rgb8(205, 214, 244),
+            },
         }
     }
 }
@@ -283,6 +318,12 @@ impl svg::StyleSheet for Theme {
     type Style = Svg;
 
     fn appearance(&self, style: &Self::Style) -> svg::Appearance {
+        match style {
+            Svg::Default => Default::default(),
+        }
+    }
+
+    fn hovered(&self, style: &Self::Style) -> svg::Appearance {
         match style {
             Svg::Default => Default::default(),
         }
@@ -380,10 +421,13 @@ impl menu::StyleSheet for Theme {
         match style {
             Menu::Default => menu::Appearance {
                 text_color: Color::from_rgb8(205, 214, 244),
-                background: iced::Background::Color(Color::from_rgb8(55, 55, 73)),
-                border_width: 0.0,
-                border_radius: 15.0.into(),
-                border_color: Color::from_rgb8(205, 214, 244),
+                background: iced::Background::Color(Color::from_rgb8(49, 50, 68)),
+
+                border: Border {
+                    radius: 15.0.into(),
+                    width: 0.5,
+                    color: Color::from_rgb8(30, 102, 245),
+                },
                 selected_text_color: Color::from_rgb8(205, 214, 244),
                 selected_background: iced::Background::Color(Color::from_rgb8(30, 102, 245)),
             },
@@ -406,46 +450,70 @@ pub enum Scrollable {
 impl scrollable::StyleSheet for Theme {
     type Style = Scrollable;
 
-    fn active(&self, style: &Self::Style) -> scrollable::Scrollbar {
+    fn active(&self, style: &Self::Style) -> scrollable::Appearance {
         match style {
-            Scrollable::Default => scrollable::Scrollbar {
-                background: Some(iced::Background::Color(Color::from_rgb(
-                    0x20 as f32 / 255.0,
-                    0x22 as f32 / 255.0,
-                    0x25 as f32 / 255.0,
-                ))),
-                border_radius: 15.0.into(),
-                border_width: 0.0,
-                border_color: Color::TRANSPARENT,
-                scroller: scrollable::Scroller {
-                    color: Color::from_rgb8(205, 214, 244),
-                    border_radius: 2.0.into(),
-                    border_width: 0.0,
-                    border_color: Color::TRANSPARENT,
+            Scrollable::Default => scrollable::Appearance {
+                scrollbar: scrollable::Scrollbar {
+                    background: Some(iced::Background::Color(Color::from_rgb(
+                        0x20 as f32 / 255.0,
+                        0x22 as f32 / 255.0,
+                        0x25 as f32 / 255.0,
+                    ))),
+
+                    border: Border {
+                        radius: 15.0.into(),
+                        width: 0.0,
+                        color: Color::TRANSPARENT,
+                    },
+                    scroller: scrollable::Scroller {
+                        color: Color::from_rgb8(205, 214, 244),
+
+                        border: Border {
+                            radius: 15.0.into(),
+                            width: 1.0,
+                            color: Color::TRANSPARENT,
+                        },
+                    },
                 },
+                gap: None,
+                container: container::Appearance::default()
             },
         }
     }
 
-    fn hovered(&self, style: &Self::Style, is_mouse_over_scrollbar: bool) -> scrollable::Scrollbar {
+    fn hovered(
+        &self,
+        style: &Self::Style,
+        is_mouse_over_scrollbar: bool,
+    ) -> scrollable::Appearance {
         match style {
             Scrollable::Default => {
                 if is_mouse_over_scrollbar {
-                    scrollable::Scrollbar {
-                        background: Some(iced::Background::Color(Color::from_rgb(
-                            0x20 as f32 / 255.0,
-                            0x22 as f32 / 255.0,
-                            0x25 as f32 / 255.0,
-                        ))),
-                        border_radius: 15.0.into(),
-                        border_width: 0.0,
-                        border_color: Color::TRANSPARENT,
-                        scroller: scrollable::Scroller {
-                            color: Color::from_rgb8(205, 214, 244),
-                            border_radius: 2.0.into(),
-                            border_width: 0.0,
-                            border_color: Color::TRANSPARENT,
+                    scrollable::Appearance {
+                        scrollbar: scrollable::Scrollbar {
+                            background: Some(iced::Background::Color(Color::from_rgb(
+                                0x20 as f32 / 255.0,
+                                0x22 as f32 / 255.0,
+                                0x25 as f32 / 255.0,
+                            ))),
+        
+                            border: Border {
+                                radius: 15.0.into(),
+                                width: 0.0,
+                                color: Color::TRANSPARENT,
+                            },
+                            scroller: scrollable::Scroller {
+                                color: Color::from_rgb8(205, 214, 244),
+        
+                                border: Border {
+                                    radius: 15.0.into(),
+                                    width: 1.0,
+                                    color: Color::TRANSPARENT,
+                                },
+                            },
                         },
+                        gap: None,
+                        container: container::Appearance::default()
                     }
                 } else {
                     self.active(style)
@@ -454,31 +522,9 @@ impl scrollable::StyleSheet for Theme {
         }
     }
 
-    fn dragging(&self, style: &Self::Style) -> scrollable::Scrollbar {
+    fn dragging(&self, style: &Self::Style) -> scrollable::Appearance {
         match style {
             Scrollable::Default => self.hovered(style, true),
-        }
-    }
-
-    fn active_horizontal(&self, style: &Self::Style) -> scrollable::Scrollbar {
-        match style {
-            Scrollable::Default => self.active(style),
-        }
-    }
-
-    fn hovered_horizontal(
-        &self,
-        style: &Self::Style,
-        is_mouse_over_scrollbar: bool,
-    ) -> scrollable::Scrollbar {
-        match style {
-            Scrollable::Default => self.hovered(style, is_mouse_over_scrollbar),
-        }
-    }
-
-    fn dragging_horizontal(&self, style: &Self::Style) -> scrollable::Scrollbar {
-        match style {
-            Scrollable::Default => self.hovered_horizontal(style, true),
         }
     }
 }
@@ -500,13 +546,15 @@ impl toggler::StyleSheet for Theme {
                 } else {
                     Color::from_rgb8(205, 214, 244)
                 },
-                background_border: None,
                 foreground: if is_active {
                     Color::from_rgb8(205, 214, 244)
                 } else {
                     Color::from_rgb8(88, 91, 112)
                 },
-                foreground_border: None,
+                background_border_width: 0.0,
+                background_border_color: Color::WHITE,
+                foreground_border_width: 0.0,
+                foreground_border_color: Color::WHITE,
             },
         }
     }

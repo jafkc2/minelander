@@ -1,13 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use self::widget::Element;
 use iced::{
-    alignment, executor,
-    subscription::events_with,
+    alignment,
+    event::listen_with,
+    executor,
     widget::{
         button, column, container, pick_list, row, scrollable, slider, svg, text, text_input,
         toggler, tooltip, Button,
     },
-    window::{self},
+    window::{self, Id},
     Alignment, Application, Command, Length, Settings, Subscription,
 };
 use launcher::get_minecraft_dir;
@@ -27,6 +28,7 @@ use widget::Renderer;
 mod downloader;
 mod launcher;
 mod theme;
+use theme::Theme;
 
 fn main() -> iced::Result {
     if !Path::new(&get_minecraft_dir()).exists() {
@@ -36,17 +38,21 @@ fn main() -> iced::Result {
         };
     }
 
-    let icon = include_bytes!("icons/Minelander.png");
+    let icon = include_bytes!("icons/minelander.png");
 
     Minelander::run(Settings {
+        id: Some(String::from("Minelander")),
         window: window::Settings {
-            size: (800, 450),
+            size: iced::Size {
+                width: 900.,
+                height: 535.,
+            },
             resizable: false,
             icon: Some(window::icon::from_file_data(icon, None).unwrap()),
+            exit_on_close_request: false,
 
             ..window::Settings::default()
         },
-        exit_on_close_request: false,
 
         ..Settings::default()
     })
@@ -198,7 +204,7 @@ impl Minelander {
             ram: self.game_ram,
             game_wrapper_commands: wrapper_commands_vec,
             game_directory: self.current_game_profile.clone(),
-            java_type: java_type,
+            java_type,
             enviroment_variables: enviroment_variables_hash_map,
         };
         self.launcher.start(game_settings);
@@ -230,7 +236,7 @@ impl Application for Minelander {
             flags: String::new(),
         };
         currentjava.name = p["current_java_name"].as_str().unwrap().to_string();
-        
+
         let mut jvmnames: Vec<String> = Vec::new();
         if let Some(jvms) = p["JVMs"].as_array() {
             for jvm in jvms {
@@ -313,7 +319,7 @@ impl Application for Minelander {
     }
 
     fn title(&self) -> String {
-        String::from("Minelander 0.5.3")
+        format!("Minelander {}", env!("CARGO_PKG_VERSION"))
     }
 
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
@@ -766,7 +772,7 @@ impl Application for Minelander {
             Message::Exit => {
                 self.launcher.state = LauncherState::Idle;
                 self.downloaders.clear();
-                return window::close();
+                return window::close(Id::MAIN);
             }
         }
     }
@@ -840,6 +846,7 @@ impl Application for Minelander {
 
         let content = match self.screen {
             Screen::Main => {
+                
                 let (launch_text, launch_message) = match self.launcher.state {
                     LauncherState::Idle => ("Launch", Option::Some(Message::Launch)),
                     LauncherState::Launching(_) => ("Launching", Option::None),
@@ -848,8 +855,9 @@ impl Application for Minelander {
                 };
                 let launch_button = button(
                     text(launch_text)
-                        .size(40)
-                        .horizontal_alignment(alignment::Horizontal::Center),
+                        .size(35)
+                        .horizontal_alignment(alignment::Horizontal::Center).vertical_alignment(alignment::Vertical::Center),
+
                 )
                 .width(285)
                 .height(60)
@@ -859,7 +867,7 @@ impl Application for Minelander {
                     //mainscreen
                     //title
                     column![
-                        text("minelander").size(50),
+                        text("Minelander").size(50),
                         text(format!("Hello {}!", self.username))
                             .style(theme::Text::Peach)
                             .size(18)
@@ -876,7 +884,7 @@ impl Application for Minelander {
                                     .width(285),
                                 text("Version:"),
                                 pick_list(
-                                    &self.all_versions,
+                                    self.all_versions.clone(),
                                     Some(self.current_version.clone()),
                                     Message::VersionChanged,
                                 )
@@ -922,9 +930,10 @@ impl Application for Minelander {
                     //launchbutton
                     row![
                         launch_button,
-                        text(&self.game_state_text)
+                        text(format!("{}", &self.game_state_text))
                             .style(theme::Text::Green)
-                            .size(18)
+                            .size(15).height(40)
+                            
                     ]
                     .spacing(10),
                 ]
@@ -943,7 +952,7 @@ impl Application for Minelander {
                             column![
                                 text("JVM:").horizontal_alignment(alignment::Horizontal::Center),
                                 pick_list(
-                                    &self.java_name_list,
+                                    self.java_name_list.clone(),
                                     Some(self.current_java_name.clone()),
                                     Message::JavaChanged
                                 )
@@ -964,7 +973,7 @@ impl Application for Minelander {
                                 text("Game profile:")
                                     .horizontal_alignment(alignment::Horizontal::Center),
                                 pick_list(
-                                    &self.game_profile_list,
+                                    self.game_profile_list.clone(),
                                     Some(self.current_game_profile.clone()),
                                     Message::GameProfileChanged
                                 )
@@ -1043,7 +1052,7 @@ impl Application for Minelander {
                 //installbutton
                 button(
                     text("Install")
-                        .size(25)
+                        .size(20)
                         .horizontal_alignment(alignment::Horizontal::Center)
                 )
                 .width(250)
@@ -1066,7 +1075,7 @@ impl Application for Minelander {
                     //installbutton
                     button(
                         text("Install")
-                            .size(25)
+                            .size(20)
                             .horizontal_alignment(alignment::Horizontal::Center)
                     )
                     .width(250)
@@ -1108,11 +1117,11 @@ impl Application for Minelander {
                             .width(250),
                         button(
                             text("Add")
-                                .size(20)
+                                .size(15)
                                 .horizontal_alignment(alignment::Horizontal::Center)
                         )
                         .width(135)
-                        .height(30)
+                        .height(35)
                         .on_press(Message::JvmAdded)
                     ]
                     .spacing(5)
@@ -1136,11 +1145,11 @@ impl Application for Minelander {
                             .width(250),
                         button(
                             text("Add")
-                                .size(20)
+                                .size(15)
                                 .horizontal_alignment(alignment::Horizontal::Center)
                         )
                         .width(135)
-                        .height(30)
+                        .height(35)
                         .on_press(Message::GameProfileAdded)
                     ]
                     .spacing(15)
@@ -1160,9 +1169,6 @@ impl Application for Minelander {
             .spacing(15),
             Screen::ModifyCommand => column![
                 text("Modify game command").size(50),
-                text("advanced settings, only edit if you know what you are doing.")
-                    .size(15)
-                    .style(theme::Text::Red),
                 text("Wraper commands").size(25),
                 text_input("Example: command1 command2", &self.game_wrapper_commands)
                     .on_input(Message::GameWrapperCommandsChanged)
@@ -1194,8 +1200,8 @@ impl Application for Minelander {
         }
         subscriptions.push(self.launcher.subscription());
 
-        let events = events_with(|event, _status| match event {
-            iced::Event::Window(window::Event::CloseRequested) => Some(Message::Exit),
+        let events = listen_with(|event, _status| match event {
+            iced::Event::Window(Id::MAIN, window::Event::CloseRequested) => Some(Message::Exit),
             _ => None,
         });
 
@@ -1205,9 +1211,9 @@ impl Application for Minelander {
     }
 }
 
-fn action<'a>(widget: Button<'a, Message, Renderer>, tp_text: &str) -> Element<'a, Message> {
+fn action<'a>(widget: Button<'a, Message, Theme, Renderer>, tp_text: &'a str) -> Element<'a, Message> {
     tooltip(widget, tp_text, tooltip::Position::Right)
-        .style(theme::Container::BlackerBlackContainer)
+        .style(theme::Container::BlackContainer)
         .padding(10)
         .into()
 }
@@ -1439,11 +1445,12 @@ impl Downloader {
     }
 }
 // for Theme
+
 mod widget {
     use crate::theme::Theme;
 
-    pub type Renderer = iced::Renderer<Theme>;
-    pub type Element<'a, Message> = iced::Element<'a, Message, Renderer>;
+    pub type Renderer = iced::Renderer;
+    pub type Element<'a, Message> = iced::Element<'a, Message, Theme, Renderer>;
 }
 
 // java struct
@@ -1471,10 +1478,7 @@ fn get_config_file_path() -> String {
     );
 
     #[cfg(not(debug_assertions))]
-    return format!(
-        "{}/minelander_settings.json",
-        launcher::get_minecraft_dir()
-    );
+    return format!("{}/minelander_settings.json", launcher::get_minecraft_dir());
 }
 
 fn is_file_empty(file_path: &str) -> bool {
