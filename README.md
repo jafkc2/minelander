@@ -15,7 +15,8 @@ Note: For now the launcher only works in offline mode.
 * Works in offline mode
 * No need to install Java, the launcher provides both Java 8 and Java 17
 
-![image](https://github.com/JafKc/siglauncher/assets/109480612/a7cf4036-989b-4b90-8a1b-ab0c12207bc5)
+![image](https://github.com/jafkc2/minelander/assets/150557443/80cc2f42-7599-453b-aa1b-436cb1601937)
+
 
 
 ### Installation
