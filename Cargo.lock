@@ -1868,6 +1868,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "shared_child",
  "uuid",
  "winres",
  "zip",
@@ -2821,6 +2822,16 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "shared_child"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0d94659ad3c2137fef23ae75b03d5241d633f8acded53d672decfa0e6e0caef"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]

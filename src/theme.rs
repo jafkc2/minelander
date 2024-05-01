@@ -61,14 +61,13 @@ impl container::StyleSheet for Theme {
         match style {
             Container::Default => container::Appearance::default(),
             Container::BlackContainer => container::Appearance {
-                //background: Color::from_rgb8(49, 50, 68),
                 background: Some(Background::Color(Color::from_rgb8(49, 50, 68))),
                 border: Border {
                     radius: 25.0.into(),
                     ..Default::default()
                 },
                 ..Default::default()
-            }
+            },
         }
     }
 }
@@ -78,6 +77,7 @@ pub enum Button {
     #[default]
     Primary,
     Secondary,
+    Red,
     Transparent,
 }
 
@@ -98,6 +98,14 @@ impl button::StyleSheet for Theme {
             },
             Button::Secondary => button::Appearance {
                 background: Some(Background::Color(Color::from_rgb8(5, 194, 112))),
+                border: Border {
+                    radius: 15.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            Button::Red => button::Appearance {
+                background: Some(Background::Color(Color::from_rgb8(210, 15, 57))),
                 border: Border {
                     radius: 15.0.into(),
                     ..Default::default()
@@ -141,6 +149,14 @@ impl button::StyleSheet for Theme {
                 },
                 ..Default::default()
             },
+            Button::Red => button::Appearance {
+                background: Some(Background::Color(Color::from_rgb8(210, 15, 57))),
+                border: Border {
+                    radius: 15.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
         }
     }
 
@@ -166,6 +182,14 @@ impl button::StyleSheet for Theme {
             },
             Button::Transparent => button::Appearance {
                 background: Some(Background::Color(Color::TRANSPARENT)),
+                ..Default::default()
+            },
+            Button::Red => button::Appearance {
+                background: Some(Background::Color(Color::from_rgb8(210, 15, 57))),
+                border: Border {
+                    radius: 15.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         }
@@ -476,7 +500,7 @@ impl scrollable::StyleSheet for Theme {
                     },
                 },
                 gap: None,
-                container: container::Appearance::default()
+                container: container::Appearance::default(),
             },
         }
     }
@@ -496,7 +520,7 @@ impl scrollable::StyleSheet for Theme {
                                 0x22 as f32 / 255.0,
                                 0x25 as f32 / 255.0,
                             ))),
-        
+
                             border: Border {
                                 radius: 15.0.into(),
                                 width: 0.0,
@@ -504,7 +528,7 @@ impl scrollable::StyleSheet for Theme {
                             },
                             scroller: scrollable::Scroller {
                                 color: Color::from_rgb8(205, 214, 244),
-        
+
                                 border: Border {
                                     radius: 15.0.into(),
                                     width: 1.0,
@@ -513,7 +537,7 @@ impl scrollable::StyleSheet for Theme {
                             },
                         },
                         gap: None,
-                        container: container::Appearance::default()
+                        container: container::Appearance::default(),
                     }
                 } else {
                     self.active(style)

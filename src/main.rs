@@ -14,8 +14,11 @@ use iced::{
 use launcher::get_minecraft_dir;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
-use std::fs::File;
-use std::io::Read;
+use shared_child::SharedChild;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    io::Read,
+};
 use std::{collections::HashMap, env::set_current_dir};
 use std::{
     env,
@@ -23,6 +26,7 @@ use std::{
     io::Write,
     path::Path,
 };
+use std::{fs::File, sync::Arc};
 use widget::Renderer;
 
 mod downloader;
@@ -97,6 +101,15 @@ struct Minelander {
 
     restrict_launch: bool,
     java_download_size: u8,
+
+    game_proccess: GameProcess,
+}
+
+#[derive(Default)]
+enum GameProcess {
+    Running(Arc<SharedChild>),
+    #[default]
+    Null,
 }
 
 #[derive(PartialEq, Debug, Clone, Default)]
@@ -115,6 +128,7 @@ enum Message {
     LoadVersionList(Vec<String>),
 
     Launch,
+    CloseGame,
     ManageGameInfo((usize, launcher::Progress)),
 
     UsernameChanged(String),
@@ -391,8 +405,9 @@ impl Application for Minelander {
                             }
                         }
                     }
-                    launcher::Progress::Started => {
+                    launcher::Progress::Started(child) => {
                         self.launcher.state = LauncherState::GettingLogs;
+                        self.game_proccess = GameProcess::Running(child);
                         self.game_state_text = String::new()
                     }
                     launcher::Progress::GotLog(log) => {
@@ -774,6 +789,17 @@ impl Application for Minelander {
                 self.downloaders.clear();
                 return window::close(Id::MAIN);
             }
+            Message::CloseGame => {
+                match &self.game_proccess {
+                    GameProcess::Running(process) => match process.kill() {
+                        Ok(ok) => ok,
+                        Err(e) => panic!("{}", e),
+                    },
+                    GameProcess::Null => todo!(),
+                }
+
+                Command::none()
+            }
         }
     }
 
@@ -846,7 +872,6 @@ impl Application for Minelander {
 
         let content = match self.screen {
             Screen::Main => {
-                
                 let (launch_text, launch_message) = match self.launcher.state {
                     LauncherState::Idle => ("Launch", Option::Some(Message::Launch)),
                     LauncherState::Launching(_) => ("Launching", Option::None),
@@ -856,12 +881,28 @@ impl Application for Minelander {
                 let launch_button = button(
                     text(launch_text)
                         .size(35)
-                        .horizontal_alignment(alignment::Horizontal::Center).vertical_alignment(alignment::Vertical::Center),
-
+                        .horizontal_alignment(alignment::Horizontal::Center)
+                        .vertical_alignment(alignment::Vertical::Center),
                 )
                 .width(285)
                 .height(60)
                 .on_press_maybe(launch_message);
+
+                let close_button = match self.launcher.state {
+                    LauncherState::GettingLogs => Some(
+                        button(
+                            text("Close game")
+                                .size(15)
+                                .horizontal_alignment(alignment::Horizontal::Center)
+                                .vertical_alignment(alignment::Vertical::Center),
+                        )
+                        .width(189)
+                        .height(35)
+                        .on_press(Message::CloseGame)
+                        .style(theme::Button::Red),
+                    ),
+                    _ => None,
+                };
 
                 column![
                     //mainscreen
@@ -929,11 +970,14 @@ impl Application for Minelander {
                     .spacing(15),
                     //launchbutton
                     row![
-                        launch_button,
+                        column![launch_button,]
+                            .push_maybe(close_button)
+                            .spacing(15)
+                            .align_items(Alignment::Center),
                         text(format!("{}", &self.game_state_text))
                             .style(theme::Text::Green)
-                            .size(15).height(40)
-                            
+                            .size(15)
+                            .height(40)
                     ]
                     .spacing(10),
                 ]
@@ -1211,7 +1255,10 @@ impl Application for Minelander {
     }
 }
 
-fn action<'a>(widget: Button<'a, Message, Theme, Renderer>, tp_text: &'a str) -> Element<'a, Message> {
+fn action<'a>(
+    widget: Button<'a, Message, Theme, Renderer>,
+    tp_text: &'a str,
+) -> Element<'a, Message> {
     tooltip(widget, tp_text, tooltip::Position::Right)
         .style(theme::Container::BlackContainer)
         .padding(10)

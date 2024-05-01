@@ -1,5 +1,6 @@
 use iced::subscription;
 use serde_json::Value;
+use shared_child::SharedChild;
 use std::{
     collections::HashMap,
     env,
@@ -8,7 +9,10 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     path::Path,
     process::{Command, Stdio},
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        Arc,
+    },
     thread::{self, JoinHandle},
 };
 use uuid::Uuid;
@@ -19,10 +23,10 @@ pub enum State {
     GettingLogs((Receiver<String>, JoinHandle<()>)),
     Idle,
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Progress {
     Checked(Option<Missing>),
-    Started,
+    Started(Arc<SharedChild>),
     GotLog(String),
     Finished,
     Errored(String),
@@ -328,8 +332,7 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                     };
 
                     if java_version > 8
-                        && !Path::new(&format!("{}/minelander_java/java17", minecraft_dir))
-                            .exists()
+                        && !Path::new(&format!("{}/minelander_java/java17", minecraft_dir)).exists()
                     {
                         return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
                     } else if java_version == 8
@@ -512,7 +515,10 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             if command_exists(game_command.get_program().to_str().unwrap()) {
                 let game_process_receiver = run_and_log_game(game_command);
                 if let Ok(game_pr_rec) = game_process_receiver.await {
-                    ((id, Progress::Started), State::GettingLogs(game_pr_rec))
+                    (
+                        (id, Progress::Started(game_pr_rec.1)),
+                        State::GettingLogs(game_pr_rec.0),
+                    )
                 } else {
                     (
                         (
@@ -551,17 +557,19 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
 
 async fn run_and_log_game(
     mut game_command: Command,
-) -> std::io::Result<(Receiver<String>, JoinHandle<()>)> {
+) -> std::io::Result<((Receiver<String>, JoinHandle<()>), Arc<SharedChild>)> {
     let (sender, receiver) = mpsc::channel();
 
-    let child_thread = thread::spawn(move || {
-        let mut child = game_command
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("Failed to start game process.");
+    let shared_child =
+        SharedChild::spawn(&mut game_command.stdout(Stdio::piped()).stderr(Stdio::piped()))
+            .expect("failed to start game process.");
 
-        if let Some(stdout) = child.stdout.take() {
+    let child_arc = Arc::new(shared_child);
+
+    let child_clone = child_arc.clone();
+
+    let child_thread = thread::spawn(move || {
+        if let Some(stdout) = child_clone.take_stdout() {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 match line {
@@ -573,7 +581,7 @@ async fn run_and_log_game(
             }
         }
 
-        if let Some(stderr) = child.stderr.take() {
+        if let Some(stderr) = child_clone.take_stderr() {
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 match line {
@@ -585,11 +593,13 @@ async fn run_and_log_game(
             }
         }
 
-        let status = child.wait().expect("Failed to wait for child process");
+        let status = child_clone
+            .wait()
+            .expect("Failed to wait for child process");
         println!("Child process exited with: {}", status);
     });
 
-    Ok((receiver, child_thread))
+    Ok(((receiver, child_thread), child_arc))
 }
 
 // Utility functions {
