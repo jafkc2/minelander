@@ -116,7 +116,7 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                     ))
                     .exists()
                     {
-                        let mut needed_json = File::open(&format!(
+                        let mut needed_json = File::open(format!(
                             "{}/versions/{}/{}.json",
                             minecraft_dir, vanilla_ver, vanilla_ver
                         ))
@@ -561,7 +561,7 @@ async fn run_and_log_game(
     let (sender, receiver) = mpsc::channel();
 
     let shared_child =
-        SharedChild::spawn(&mut game_command.stdout(Stdio::piped()).stderr(Stdio::piped()))
+        SharedChild::spawn(game_command.stdout(Stdio::piped()).stderr(Stdio::piped()))
             .expect("failed to start game process.");
 
     let child_arc = Arc::new(shared_child);
@@ -921,7 +921,7 @@ fn modded(
         &mc_dir, game_version, vanillaversion
     );
 
-    let mut vanillajson = File::open(&vanillajsonpathstring).unwrap();
+    let mut vanillajson = File::open(vanillajsonpathstring).unwrap();
 
     let mut vjsoncontent = String::new();
     vanillajson.read_to_string(&mut vjsoncontent).unwrap();

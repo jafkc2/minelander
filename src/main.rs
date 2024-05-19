@@ -4,10 +4,7 @@ use iced::{
     alignment,
     event::listen_with,
     executor,
-    widget::{
-        button, column, container, pick_list, row, scrollable, slider, svg, text, text_input,
-        toggler, tooltip, Button,
-    },
+    widget::{button, column, container, row, svg, tooltip, Button},
     window::{self, Id},
     Alignment, Application, Command, Length, Settings, Subscription,
 };
@@ -15,10 +12,7 @@ use launcher::get_minecraft_dir;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 use shared_child::SharedChild;
-use std::{
-    borrow::{Borrow, BorrowMut},
-    io::Read,
-};
+use std::io::Read;
 use std::{collections::HashMap, env::set_current_dir};
 use std::{
     env,
@@ -33,6 +27,7 @@ mod downloader;
 mod launcher;
 mod theme;
 use theme::Theme;
+mod screens;
 
 fn main() -> iced::Result {
     if !Path::new(&get_minecraft_dir()).exists() {
@@ -76,14 +71,14 @@ struct Minelander {
     game_ram: f64,
     current_java_name: String,
     current_java: Java,
-    current_game_profile: String,
+    current_game_instance: String,
     game_wrapper_commands: String,
     game_enviroment_variables: String,
     show_all_versions_in_download_list: bool,
 
     all_versions: Vec<String>,
     java_name_list: Vec<String>,
-    game_profile_list: Vec<String>,
+    game_instance_list: Vec<String>,
     vanilla_versions_download_list: Vec<String>,
     fabric_versions_download_list: Vec<String>,
     vanilla_version_to_download: String,
@@ -97,7 +92,7 @@ struct Minelander {
     jvm_to_add_path: String,
     jvm_to_add_flags: String,
 
-    game_profile_to_add: String,
+    game_instance_to_add: String,
 
     restrict_launch: bool,
     java_download_size: u8,
@@ -113,15 +108,16 @@ enum GameProcess {
 }
 
 #[derive(PartialEq, Debug, Clone, Default)]
-enum Screen {
+pub enum Screen {
     #[default]
     Main,
-    Options,
+    Settings,
     Installation,
     Java,
-    GameProfile,
+    GameInstance,
     Logs,
     ModifyCommand,
+    Info,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -135,7 +131,7 @@ enum Message {
     VersionChanged(String),
 
     JavaChanged(String),
-    GameProfileChanged(String),
+    GameInstanceChanged(String),
     GameRamChanged(f64),
     GameWrapperCommandsChanged(String),
     GameEnviromentVariablesChanged(String),
@@ -149,7 +145,7 @@ enum Message {
     VanillaJson(Value),
 
     OpenGameFolder,
-    OpenGameProfileFolder,
+    OpenGameInstanceFolder,
 
     ChangeScreen(Screen),
 
@@ -158,10 +154,10 @@ enum Message {
     JvmFlagsToAddChanged(String),
     JvmAdded,
 
-    GameProfileToAddChanged(String),
-    GameProfileAdded,
+    GameInstanceToAddChanged(String),
+    GameInstanceAdded,
 
-    GithubButtonPressed,
+    Github,
 
     Exit,
 }
@@ -217,7 +213,7 @@ impl Minelander {
                 .collect(),
             ram: self.game_ram,
             game_wrapper_commands: wrapper_commands_vec,
-            game_directory: self.current_game_profile.clone(),
+            game_directory: self.current_game_instance.clone(),
             java_type,
             enviroment_variables: enviroment_variables_hash_map,
         };
@@ -234,6 +230,7 @@ impl Application for Minelander {
 
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         // Configuration file
+        backward_compatibility_measures();
         checksettingsfile();
 
         let mut file = File::open(get_config_file_path()).unwrap();
@@ -268,16 +265,16 @@ impl Application for Minelander {
         jvmnames.push("Java 17 (Minelander)".to_owned());
         // Get Java info
 
-        // Game profile folder creation if it doesn't exist
+        // Game instance folder creation if it doesn't exist
         let mc_dir = launcher::get_minecraft_dir();
-        let game_profile_folder_path = format!("{}/minelander_profiles", mc_dir);
-        if !Path::new(&game_profile_folder_path).exists() {
-            match fs::create_dir_all(&game_profile_folder_path) {
-                Ok(_) => println!("Created game profiles folder"),
-                Err(e) => println!("Failed to create game profiles folder: {}", e),
+        let game_instance_folder_path = format!("{}/minelander_instances", mc_dir);
+        if !Path::new(&game_instance_folder_path).exists() {
+            match fs::create_dir_all(&game_instance_folder_path) {
+                Ok(_) => println!("Created game instances folder"),
+                Err(e) => println!("Failed to create game instances folder: {}", e),
             }
         }
-        // Game profile folder creation if it doesn't exist
+        // Game instance folder creation if it doesn't exist
 
         // Some modified versions need this file
         if !Path::new(&format!("{}/launcher_profiles.json", mc_dir)).exists() {
@@ -295,8 +292,8 @@ impl Application for Minelander {
         // Some modified versions need this file
 
         // Get game profiles
-        let entries = fs::read_dir(game_profile_folder_path).unwrap();
-        let mut new_game_profile_list = entries
+        let entries = fs::read_dir(game_instance_folder_path).unwrap();
+        let mut new_game_instance_list = entries
             .filter_map(|entry| {
                 let path = entry.unwrap().path();
                 if path.is_dir() {
@@ -306,7 +303,7 @@ impl Application for Minelander {
                 }
             })
             .collect::<Vec<_>>();
-        new_game_profile_list.push("Default".to_string());
+        new_game_instance_list.push("Default".to_string());
 
         (
             Minelander {
@@ -316,7 +313,7 @@ impl Application for Minelander {
                 game_ram: p["game_ram"].as_f64().unwrap(),
                 current_java_name: currentjava.name.clone(),
                 current_java: currentjava,
-                current_game_profile: p["current_game_profile"].as_str().unwrap().to_owned(),
+                current_game_instance: p["current_game_instance"].as_str().unwrap().to_owned(),
                 game_wrapper_commands: p["game_wrapper_commands"].as_str().unwrap().to_owned(),
                 game_enviroment_variables: p["game_enviroment_variables"]
                     .as_str()
@@ -324,7 +321,7 @@ impl Application for Minelander {
                     .to_owned(),
                 show_all_versions_in_download_list: p["show_all_versions"].as_bool().unwrap(),
                 java_name_list: jvmnames,
-                game_profile_list: new_game_profile_list,
+                game_instance_list: new_game_instance_list,
                 needs_to_update_download_list: true,
                 ..Default::default()
             },
@@ -437,11 +434,11 @@ impl Application for Minelander {
                 Command::none()
             }
             Message::ChangeScreen(new_screen) => {
-                if self.screen == Screen::Options {
+                if self.screen == Screen::Settings {
                     updatesettingsfile(
                         self.game_ram,
                         self.current_java_name.clone(),
-                        self.current_game_profile.clone(),
+                        self.current_game_instance.clone(),
                         self.game_wrapper_commands.clone(),
                         self.game_enviroment_variables.clone(),
                         self.show_all_versions_in_download_list,
@@ -476,14 +473,14 @@ impl Application for Minelander {
                 open::that(launcher::get_minecraft_dir()).unwrap();
                 Command::none()
             }
-            Message::OpenGameProfileFolder => {
-                if self.current_game_profile == "Default" {
+            Message::OpenGameInstanceFolder => {
+                if self.current_game_instance == "Default" {
                     open::that(launcher::get_minecraft_dir()).unwrap();
                 } else {
                     open::that(format!(
-                        "{}/minelander_profiles/{}",
+                        "{}/minelander_instances/{}",
                         launcher::get_minecraft_dir(),
-                        self.current_game_profile
+                        self.current_game_instance
                     ))
                     .unwrap();
                 }
@@ -533,8 +530,8 @@ impl Application for Minelander {
                 };
                 Command::none()
             }
-            Message::GameProfileChanged(new_game_profile) => {
-                self.current_game_profile = new_game_profile;
+            Message::GameInstanceChanged(new_game_instance) => {
+                self.current_game_instance = new_game_instance;
                 Command::none()
             }
             Message::GameRamChanged(new_ram) => {
@@ -636,30 +633,30 @@ impl Application for Minelander {
                         .open(get_config_file_path())
                         .unwrap();
                     file.write_all(serialized.as_bytes()).unwrap();
-                    self.screen = Screen::Options;
+                    self.screen = Screen::Settings;
                 }
                 Command::none()
             }
-            Message::GameProfileToAddChanged(game_prof) => {
-                self.game_profile_to_add = game_prof;
+            Message::GameInstanceToAddChanged(game_prof) => {
+                self.game_instance_to_add = game_prof;
                 Command::none()
             }
-            Message::GameProfileAdded => {
-                if !self.game_profile_to_add.is_empty() {
+            Message::GameInstanceAdded => {
+                if !self.game_instance_to_add.is_empty() {
                     fs::create_dir_all(format!(
-                        "{}/minelander_profiles/{}",
+                        "{}/minelander_instances/{}",
                         launcher::get_minecraft_dir(),
-                        self.game_profile_to_add
+                        self.game_instance_to_add
                     ))
                     .expect("Failed to create directory!");
 
                     let entries = fs::read_dir(format!(
-                        "{}/minelander_profiles",
+                        "{}/minelander_instances",
                         launcher::get_minecraft_dir()
                     ))
                     .unwrap();
 
-                    let mut new_game_profile_list = entries
+                    let mut new_game_instance_list = entries
                         .filter_map(|entry| {
                             let path = entry.unwrap().path();
                             if path.is_dir() {
@@ -670,16 +667,12 @@ impl Application for Minelander {
                         })
                         .collect::<Vec<_>>();
 
-                    new_game_profile_list.push("Default".to_string());
+                    new_game_instance_list.push("Default".to_string());
 
-                    self.game_profile_list = new_game_profile_list;
+                    self.game_instance_list = new_game_instance_list;
 
-                    self.screen = Screen::Options;
+                    self.screen = Screen::Settings;
                 }
-                Command::none()
-            }
-            Message::GithubButtonPressed => {
-                open::that("https://github.com/jafkc2/minelander").unwrap();
                 Command::none()
             }
 
@@ -800,6 +793,14 @@ impl Application for Minelander {
 
                 Command::none()
             }
+            Message::Github => {
+                match open::that_detached("https://github.com/jafkc2/minelander") {
+                    Ok(ok) => ok,
+                    Err(e) => println!("Failed to open Github repository in browser: {e}"),
+                }
+
+                Command::none()
+            }
         }
     }
 
@@ -813,20 +814,20 @@ impl Application for Minelander {
                     )))
                     .on_press(Message::ChangeScreen(Screen::Main))
                     .style(theme::Button::Transparent)
-                    .width(Length::Fixed(40.))
-                    .height(Length::Fixed(40.)),
-                    "Main"
+                    .width(Length::Fixed(42.))
+                    .height(Length::Fixed(42.)),
+                    "Main Screen"
                 ),
-                //options
+                // Settings
                 action(
                     button(svg(svg::Handle::from_memory(
-                        include_bytes!("icons/options.svg").as_slice()
+                        include_bytes!("icons/settings.svg").as_slice()
                     )))
-                    .on_press(Message::ChangeScreen(Screen::Options))
+                    .on_press(Message::ChangeScreen(Screen::Settings))
                     .style(theme::Button::Transparent)
-                    .width(Length::Fixed(40.))
-                    .height(Length::Fixed(40.)),
-                    "Options"
+                    .width(Length::Fixed(42.))
+                    .height(Length::Fixed(42.)),
+                    "Settings"
                 ),
                 //download screen
                 action(
@@ -835,9 +836,9 @@ impl Application for Minelander {
                     )))
                     .on_press(Message::ChangeScreen(Screen::Installation))
                     .style(theme::Button::Transparent)
-                    .width(Length::Fixed(40.))
-                    .height(Length::Fixed(40.)),
-                    "Install a version"
+                    .width(Length::Fixed(42.))
+                    .height(Length::Fixed(42.)),
+                    "Installer"
                 ),
                 //account
                 action(
@@ -845,388 +846,32 @@ impl Application for Minelander {
                         include_bytes!("icons/account.svg").as_slice()
                     )))
                     .style(theme::Button::Transparent)
-                    .width(Length::Fixed(40.))
-                    .height(Length::Fixed(40.)),
-                    "WIP"
+                    .width(Length::Fixed(42.))
+                    .height(Length::Fixed(42.)),
+                    "Account (WIP)"
                 ),
-                //github
+                // Info
                 action(
                     button(svg(svg::Handle::from_memory(
-                        include_bytes!("icons/github.svg").as_slice()
+                        include_bytes!("icons/info.svg").as_slice()
                     )))
-                    .on_press(Message::GithubButtonPressed)
+                    .on_press(Message::ChangeScreen(Screen::Info))
                     .style(theme::Button::Transparent)
-                    .width(Length::Fixed(40.))
-                    .height(Length::Fixed(40.)),
-                    "Redirect to github repository"
+                    .width(Length::Fixed(42.))
+                    .height(Length::Fixed(42.)),
+                    "Info"
                 )
             ]
-            .spacing(25)
+            .spacing(20)
             .align_items(Alignment::Center),
         )
         .style(theme::Container::BlackContainer)
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center)
         .width(50)
-        .height(Length::Fill);
+        .height(Length::Fixed(400.));
 
-        let content = match self.screen {
-            Screen::Main => {
-                let (launch_text, launch_message) = match self.launcher.state {
-                    LauncherState::Idle => ("Launch", Option::Some(Message::Launch)),
-                    LauncherState::Launching(_) => ("Launching", Option::None),
-                    LauncherState::GettingLogs => ("Running", Option::None),
-                    LauncherState::Waiting => ("...", Option::None),
-                };
-                let launch_button = button(
-                    text(launch_text)
-                        .size(35)
-                        .horizontal_alignment(alignment::Horizontal::Center)
-                        .vertical_alignment(alignment::Vertical::Center),
-                )
-                .width(285)
-                .height(60)
-                .on_press_maybe(launch_message);
-
-                let close_button = match self.launcher.state {
-                    LauncherState::GettingLogs => Some(
-                        button(
-                            text("Close game")
-                                .size(15)
-                                .horizontal_alignment(alignment::Horizontal::Center)
-                                .vertical_alignment(alignment::Vertical::Center),
-                        )
-                        .width(189)
-                        .height(35)
-                        .on_press(Message::CloseGame)
-                        .style(theme::Button::Red),
-                    ),
-                    _ => None,
-                };
-
-                column![
-                    //mainscreen
-                    //title
-                    column![
-                        text("Minelander").size(50),
-                        text(format!("Hello {}!", self.username))
-                            .style(theme::Text::Peach)
-                            .size(18)
-                    ]
-                    .spacing(5),
-                    //username and version input
-                    row![
-                        container(
-                            column![
-                                text("Username:"),
-                                text_input("Username", &self.username)
-                                    .on_input(Message::UsernameChanged)
-                                    .size(25)
-                                    .width(285),
-                                text("Version:"),
-                                pick_list(
-                                    self.all_versions.clone(),
-                                    Some(self.current_version.clone()),
-                                    Message::VersionChanged,
-                                )
-                                .placeholder("Select a version")
-                                .width(285)
-                                .text_size(15)
-                            ]
-                            .spacing(10)
-                        )
-                        .style(theme::Container::BlackContainer)
-                        .padding(10),
-                        container(
-                            column![
-                                button(
-                                    text("Open game folder")
-                                        .horizontal_alignment(alignment::Horizontal::Center)
-                                )
-                                .width(200)
-                                .height(32)
-                                .on_press(Message::OpenGameFolder),
-                                button(
-                                    text("Open game profile folder")
-                                        .horizontal_alignment(alignment::Horizontal::Center)
-                                )
-                                .width(200)
-                                .height(32)
-                                .on_press(Message::OpenGameProfileFolder),
-                                button(
-                                    text("Logs")
-                                        .horizontal_alignment(alignment::Horizontal::Center)
-                                )
-                                .width(80)
-                                .height(32)
-                                .on_press(Message::ChangeScreen(Screen::Logs)),
-                            ]
-                            .spacing(10)
-                            .align_items(Alignment::Center)
-                        )
-                        .style(theme::Container::BlackContainer)
-                        .padding(20)
-                    ]
-                    .spacing(15),
-                    //launchbutton
-                    row![
-                        column![launch_button,]
-                            .push_maybe(close_button)
-                            .spacing(15)
-                            .align_items(Alignment::Center),
-                        text(format!("{}", &self.game_state_text))
-                            .style(theme::Text::Green)
-                            .size(15)
-                            .height(40)
-                    ]
-                    .spacing(10),
-                ]
-                .spacing(25)
-                .max_width(800)
-            }
-
-            Screen::Options => column![
-                //optionsscreen
-                //title
-                text("Options").size(50),
-                //jvm and profile management
-                row![
-                    container(
-                        column![
-                            column![
-                                text("JVM:").horizontal_alignment(alignment::Horizontal::Center),
-                                pick_list(
-                                    self.java_name_list.clone(),
-                                    Some(self.current_java_name.clone()),
-                                    Message::JavaChanged
-                                )
-                                .width(250)
-                                .text_size(25),
-                                button(
-                                    text("Manage JVMs")
-                                        .width(250)
-                                        .horizontal_alignment(alignment::Horizontal::Center)
-                                )
-                                .height(32)
-                                .on_press(Message::ChangeScreen(Screen::Java))
-                            ]
-                            .spacing(10)
-                            .max_width(800)
-                            .align_items(Alignment::Center),
-                            column![
-                                text("Game profile:")
-                                    .horizontal_alignment(alignment::Horizontal::Center),
-                                pick_list(
-                                    self.game_profile_list.clone(),
-                                    Some(self.current_game_profile.clone()),
-                                    Message::GameProfileChanged
-                                )
-                                .width(250)
-                                .text_size(25),
-                                button(
-                                    text("Manage game profiles")
-                                        .width(250)
-                                        .horizontal_alignment(alignment::Horizontal::Center)
-                                )
-                                .height(32)
-                                .on_press(Message::ChangeScreen(Screen::GameProfile))
-                            ]
-                            .spacing(10)
-                            .max_width(800)
-                            .align_items(Alignment::Center)
-                        ]
-                        .spacing(10)
-                    )
-                    .style(theme::Container::BlackContainer)
-                    .padding(10),
-                    //memory, gamemode and showallversions option
-                    container(
-                        column![
-                            column![
-                                text(format!("Allocated memory: {}GiB", self.game_ram))
-                                    .size(25)
-                                    .horizontal_alignment(alignment::Horizontal::Center),
-                                slider(0.5..=16.0, self.game_ram, Message::GameRamChanged)
-                                    .width(250)
-                                    .step(0.5)
-                            ],
-                            row![
-                                toggler(
-                                    String::new(),
-                                    self.show_all_versions_in_download_list,
-                                    Message::ShowAllVersionsInDownloadListChanged
-                                )
-                                .width(Length::Shrink),
-                                text("Show all versions in installer")
-                                    .horizontal_alignment(alignment::Horizontal::Center)
-                            ]
-                            .spacing(10),
-                            button("Add wrapper commands")
-                                .on_press(Message::ChangeScreen(Screen::ModifyCommand))
-                        ]
-                        .spacing(50)
-                    )
-                    .style(theme::Container::BlackContainer)
-                    .padding(10)
-                ]
-                .spacing(15),
-            ]
-            .spacing(15)
-            .max_width(800),
-
-            Screen::Installation => {
-                column![
-                //installerscreen
-                //title
-                text("Version installer").size(50),
-
-                row![
-                //vanilla
-                container(
-                column![
-                    text("Vanilla"),
-                pick_list(
-                    self.vanilla_versions_download_list.clone(),
-                    Some(self.vanilla_version_to_download.clone()),
-                    Message::VanillaVersionToDownloadChanged,
-                )
-                .placeholder("Select a version")
-                .width(250)
-                .text_size(15),
-                //installbutton
-                button(
-                    text("Install")
-                        .size(20)
-                        .horizontal_alignment(alignment::Horizontal::Center)
-                )
-                .width(250)
-                .height(40)
-                .on_press_maybe(Some(Message::InstallVersion(downloader::VersionType::Vanilla)))
-                .style(theme::Button::Secondary)].spacing(15)).style(theme::Container::BlackContainer).padding(10),
-
-                //fabric
-                container(
-                    column![
-                        text("Fabric"),
-                    pick_list(
-                        self.fabric_versions_download_list.clone(),
-                        Some(self.fabric_version_to_download.clone()),
-                        Message::FabricVersionToDownloadChanged,
-                    )
-                    .placeholder("Select a version")
-                    .width(250)
-                    .text_size(15),
-                    //installbutton
-                    button(
-                        text("Install")
-                            .size(20)
-                            .horizontal_alignment(alignment::Horizontal::Center)
-                    )
-                    .width(250)
-                    .height(40)
-                    .on_press_maybe(Some(Message::InstallVersion(downloader::VersionType::Fabric)))
-                    .style(theme::Button::Secondary)].spacing(15)).style(theme::Container::BlackContainer).padding(10)].spacing(15),
-
-                if !self.show_all_versions_in_download_list{
-                    text("Enable the \"Show all versions in installer\" setting to download snapshots and other versions.").style(theme::Text::Green)
-                } else{
-                    text("")
-                },
-                text(&self.download_text).size(15)]
-            .spacing(15)
-            .max_width(800)
-            }
-
-            Screen::Java => column![
-                text("Manage JVMs")
-                    .size(50)
-                    .horizontal_alignment(alignment::Horizontal::Center),
-                container(
-                    column![
-                        text("New JVM"),
-                        text("JVM name:"),
-                        text_input("", &self.jvm_to_add_name)
-                            .on_input(Message::JvmNameToAddChanged)
-                            .size(25)
-                            .width(250),
-                        text("JVM path:"),
-                        text_input("", &self.jvm_to_add_path)
-                            .on_input(Message::JvmPathToAddChanged)
-                            .size(25)
-                            .width(250),
-                        text("JVM flags:"),
-                        text_input("", &self.jvm_to_add_flags)
-                            .on_input(Message::JvmFlagsToAddChanged)
-                            .size(25)
-                            .width(250),
-                        button(
-                            text("Add")
-                                .size(15)
-                                .horizontal_alignment(alignment::Horizontal::Center)
-                        )
-                        .width(135)
-                        .height(35)
-                        .on_press(Message::JvmAdded)
-                    ]
-                    .spacing(5)
-                )
-                .style(theme::Container::BlackContainer)
-                .padding(15)
-            ]
-            .spacing(15)
-            .max_width(800),
-            Screen::GameProfile => column![
-                text("Manage game profiles")
-                    .size(50)
-                    .horizontal_alignment(alignment::Horizontal::Center),
-                container(
-                    column![
-                        text("New game profile"),
-                        text("Game profile name:"),
-                        text_input("", &self.game_profile_to_add)
-                            .on_input(Message::GameProfileToAddChanged)
-                            .size(25)
-                            .width(250),
-                        button(
-                            text("Add")
-                                .size(15)
-                                .horizontal_alignment(alignment::Horizontal::Center)
-                        )
-                        .width(135)
-                        .height(35)
-                        .on_press(Message::GameProfileAdded)
-                    ]
-                    .spacing(15)
-                )
-                .style(theme::Container::BlackContainer)
-                .padding(15)
-            ]
-            .spacing(15)
-            .max_width(800),
-
-            Screen::Logs => column![
-                text("Game logs").size(50),
-                container(scrollable(text(self.logs.join("\n")).size(10)))
-                    .style(theme::Container::BlackContainer)
-                    .padding(10)
-            ]
-            .spacing(15),
-            Screen::ModifyCommand => column![
-                text("Modify game command").size(50),
-                text("Wraper commands").size(25),
-                text_input("Example: command1 command2", &self.game_wrapper_commands)
-                    .on_input(Message::GameWrapperCommandsChanged)
-                    .size(12),
-                text("Enviroment variables").size(25),
-                text_input(
-                    "Example: KEY1=value1 KEY2=value2",
-                    &self.game_enviroment_variables
-                )
-                .on_input(Message::GameEnviromentVariablesChanged)
-                .size(12)
-            ]
-            .spacing(25),
-        };
+        let content = screens::get_screen_content(&self);
 
         container(row![sidebar, content].spacing(65))
             .width(Length::Fill)
@@ -1265,7 +910,7 @@ fn action<'a>(
         .into()
 }
 
-// Configuration file options{
+// Configuration file settings{
 fn checksettingsfile() {
     let mut conf_json = match Path::new(&get_config_file_path()).exists() {
         true => getjson(get_config_file_path()),
@@ -1320,9 +965,9 @@ fn checksettingsfile() {
             );
         }
 
-        if !map.contains_key("current_game_profile") {
+        if !map.contains_key("current_game_instance") {
             map.insert(
-                "current_game_profile".to_owned(),
+                "current_game_instance".to_owned(),
                 serde_json::to_value(String::from("Default")).unwrap(),
             );
         }
@@ -1365,7 +1010,7 @@ fn updateusersettingsfile(username: String, version: String) -> std::io::Result<
 fn updatesettingsfile(
     ram: f64,
     currentjvm: String,
-    current_game_profile: String,
+    current_game_instance: String,
     wrapper_commands: String,
     env_variables: String,
     showallversions: bool,
@@ -1380,7 +1025,7 @@ fn updatesettingsfile(
 
     data["game_ram"] = serde_json::Value::Number(Number::from_f64(ram).unwrap());
     data["current_java_name"] = serde_json::Value::String(currentjvm);
-    data["current_game_profile"] = serde_json::Value::String(current_game_profile);
+    data["current_game_instance"] = serde_json::Value::String(current_game_instance);
     data["game_wrapper_commands"] = serde_json::Value::String(wrapper_commands);
     data["show_all_versions"] = serde_json::Value::Bool(showallversions);
     data["game_enviroment_variables"] = serde_json::Value::String(env_variables);
@@ -1396,7 +1041,7 @@ fn updatesettingsfile(
     Ok(())
 }
 
-// } Configuration file options
+// } Configuration file Settings
 
 // Launcher Struct for subscriptions and interacting with launcher.rs
 #[derive(Debug)]
@@ -1535,5 +1180,17 @@ fn is_file_empty(file_path: &str) -> bool {
     match file.read(&mut buffer).unwrap() {
         0 => true,
         _ => false,
+    }
+}
+
+fn backward_compatibility_measures() {
+    let old_game_instances_path = format!("{}/minelander_profiles", get_minecraft_dir());
+    let new_game_instances_path = format!("{}/minelander_instances", get_minecraft_dir());
+
+    if Path::new(&old_game_instances_path).is_dir() {
+        match fs::rename(old_game_instances_path, new_game_instances_path) {
+            Ok(ok) => ok,
+            Err(e) => println!("Failed to rename minelander_profiles folder: {e}"),
+        }
     }
 }

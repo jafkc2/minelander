@@ -343,13 +343,17 @@ impl svg::StyleSheet for Theme {
 
     fn appearance(&self, style: &Self::Style) -> svg::Appearance {
         match style {
-            Svg::Default => Default::default(),
+            Svg::Default => svg::Appearance {
+                color: Some(Color::from_rgb8(255, 255, 255)),
+            },
         }
     }
 
     fn hovered(&self, style: &Self::Style) -> svg::Appearance {
         match style {
-            Svg::Default => Default::default(),
+            Svg::Default => svg::Appearance {
+                color: Some(Color::from_rgb8(220, 220, 255)),
+            },
         }
     }
 }
