@@ -31,7 +31,7 @@ mod screens;
 
 fn main() -> iced::Result {
     if !Path::new(&get_minecraft_dir()).exists() {
-        match fs::create_dir_all(&get_minecraft_dir()) {
+        match fs::create_dir_all(get_minecraft_dir()) {
             Ok(_) => println!("Minecraft directory was created."),
             Err(e) => println!("Failed to create Minecraft directory: {e}"),
         };
@@ -780,7 +780,7 @@ impl Application for Minelander {
             Message::Exit => {
                 self.launcher.state = LauncherState::Idle;
                 self.downloaders.clear();
-                return window::close(Id::MAIN);
+                window::close(Id::MAIN)
             }
             Message::CloseGame => {
                 match &self.game_proccess {
@@ -871,7 +871,7 @@ impl Application for Minelander {
         .width(50)
         .height(Length::Fixed(400.));
 
-        let content = screens::get_screen_content(&self);
+        let content = screens::get_screen_content(self);
 
         container(row![sidebar, content].spacing(65))
             .width(Length::Fill)

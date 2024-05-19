@@ -115,7 +115,7 @@ pub fn get_screen_content(
                         .push_maybe(close_button)
                         .spacing(15)
                         .align_items(Alignment::Center),
-                    text(format!("{}", &minelander.game_state_text))
+                    text(minelander.game_state_text.to_string())
                         .style(theme::Text::Green)
                         .size(15)
                         .height(40)
