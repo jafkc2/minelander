@@ -188,17 +188,6 @@ pub fn get_screen_content(
                                 .width(250)
                                 .step(0.5)
                         ],
-                        row![
-                            toggler(
-                                String::new(),
-                                minelander.show_all_versions_in_download_list,
-                                Message::ShowAllVersionsInDownloadListChanged
-                            )
-                            .width(Length::Shrink),
-                            text("Show all versions in installer")
-                                .horizontal_alignment(alignment::Horizontal::Center)
-                        ]
-                        .spacing(10),
                         button("Add wrapper commands")
                             .on_press(Message::ChangeScreen(Screen::ModifyCommand))
                     ]
@@ -211,68 +200,104 @@ pub fn get_screen_content(
         ]
         .spacing(15)
         .max_width(800),
+        
 
         Screen::Installation => {
-            column![
-            //installerscreen
-            //title
-            text("Version installer").size(50),
-
-            row![
-            //vanilla
-            container(
-            column![
-                text("Vanilla"),
-            pick_list(
+            let vanilla_pick_list = pick_list(
                 minelander.vanilla_versions_download_list.clone(),
                 Some(minelander.vanilla_version_to_download.clone()),
                 Message::VanillaVersionToDownloadChanged,
             )
             .placeholder("Select a version")
             .width(250)
-            .text_size(15),
-            //installbutton
-            button(
+            .text_size(15);
+
+            let fabric_pick_list = pick_list(
+                minelander.fabric_versions_download_list.clone(),
+                Some(minelander.fabric_version_to_download.clone()),
+                Message::FabricVersionToDownloadChanged,
+            )
+            .placeholder("Select a version")
+            .width(250)
+            .text_size(15);
+            
+            let vanilla_button_message = match minelander.vanilla_version_to_download.is_empty(){
+                true => None,
+                false => Some(Message::InstallVersion(downloader::VersionType::Vanilla)),
+            };
+
+            let fabric_button_message = match minelander.fabric_version_to_download.is_empty(){
+                true => None,
+                false => Some(Message::InstallVersion(downloader::VersionType::Fabric))
+            };
+
+            let vanilla_install_button = button(
                 text("Install")
                     .size(20)
                     .horizontal_alignment(alignment::Horizontal::Center)
             )
             .width(250)
             .height(40)
-            .on_press_maybe(Some(Message::InstallVersion(downloader::VersionType::Vanilla)))
-            .style(theme::Button::Secondary)].spacing(15)).style(theme::Container::BlackContainer).padding(10),
+            .on_press_maybe(vanilla_button_message)
+            .style(theme::Button::Secondary);
 
-            //fabric
-            container(
-                column![
-                    text("Fabric"),
-                pick_list(
-                    minelander.fabric_versions_download_list.clone(),
-                    Some(minelander.fabric_version_to_download.clone()),
-                    Message::FabricVersionToDownloadChanged,
-                )
-                .placeholder("Select a version")
-                .width(250)
-                .text_size(15),
-                //installbutton
-                button(
-                    text("Install")
-                        .size(20)
+
+            let fabric_install_button = button(
+                text("Install")
+                    .size(20)
+                    .horizontal_alignment(alignment::Horizontal::Center)
+            )
+            .width(250)
+            .height(40)
+            .on_press_maybe(fabric_button_message)
+            .style(theme::Button::Secondary);
+
+            column![
+                //installerscreen
+                //title
+                text("Version installer").size(50),
+                row![
+                    //vanilla
+                    container(
+                        column![
+                            text("Vanilla"),
+                            vanilla_pick_list,
+                            //installbutton
+                            vanilla_install_button
+                        ]
+                        .spacing(15)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(10),
+                    //fabric
+                    container(
+                        column![
+                            text("Fabric"),
+                            fabric_pick_list,
+                            //installbutton
+                            fabric_install_button
+                        ]
+                        .spacing(15)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(10)
+                ]
+                .spacing(15),
+                row![
+                    toggler(
+                        String::new(),
+                        minelander.show_all_versions_in_download_list,
+                        Message::ShowAllVersionsInDownloadListChanged
+                    )
+                    .width(Length::Shrink),
+                    text("Show non-release versions")
                         .horizontal_alignment(alignment::Horizontal::Center)
-                )
-                .width(250)
-                .height(40)
-                .on_press_maybe(Some(Message::InstallVersion(downloader::VersionType::Fabric)))
-                .style(theme::Button::Secondary)].spacing(15)).style(theme::Container::BlackContainer).padding(10)].spacing(15),
-
-            if !minelander.show_all_versions_in_download_list{
-                text("Enable the \"Show all versions in installer\" setting to download snapshots and other versions.").style(theme::Text::Green)
-            } else{
-                text("")
-            },
-            text(&minelander.download_text).size(15)]
-        .spacing(15)
-        .max_width(800)
+                ]
+                .spacing(10),
+                text(&minelander.download_text).size(15)
+            ]
+            .spacing(15)
+            .max_width(800)
         }
 
         Screen::Java => column![
@@ -374,7 +399,7 @@ pub fn get_screen_content(
                 container(
                     column![
                         text(credits),
-                        text("Made with Rust and the Iced GUI library.").style(theme::Text::Red),
+                        text("Made with Rust and the Iced GUI library."),
                         row![
                             text("Repository hosted at Github."),
                             button(text("Click here to redirect.").size(12))

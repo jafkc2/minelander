@@ -545,7 +545,10 @@ impl Application for Minelander {
             Message::ShowAllVersionsInDownloadListChanged(bool) => {
                 self.needs_to_update_download_list = true;
                 self.show_all_versions_in_download_list = bool;
-                Command::none()
+                Command::perform(
+                    async move { downloader::get_downloadable_version_list(bool).await },
+                    Message::GotDownloadList,
+                )
             }
             Message::GotDownloadList(result) => {
                 match result {

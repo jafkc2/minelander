@@ -173,7 +173,7 @@ impl button::StyleSheet for Theme {
                 ..Default::default()
             },
             Button::Secondary => button::Appearance {
-                background: Some(Background::Color(Color::from_rgb8(5, 194, 112))),
+                background: Some(Background::Color(Color::from_rgb8(90, 115, 90))),
                 border: Border {
                     radius: 15.0.into(),
                     ..Default::default()
