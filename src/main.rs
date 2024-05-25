@@ -195,7 +195,7 @@ impl Minelander {
 
         let java_type = match self.current_java_name.as_str() {
             "Automatic" => launcher::JavaType::Automatic,
-            "System java" => launcher::JavaType::System,
+            "System Java" => launcher::JavaType::System,
             "Java 8 (Minelander)" => launcher::JavaType::LauncherJava8,
             "Java 17 (Minelander)" => launcher::JavaType::LauncherJava17,
             _ => launcher::JavaType::Custom,
