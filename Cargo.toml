@@ -1,6 +1,6 @@
 [package]
 name = "minelander"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["jafkc2"]
 repository = "https://github.com/jafkc2/minelander"
@@ -20,6 +20,8 @@ zip = "0.6.6"
 uuid = { version = "1.5.0", features = ["v4"] }
 md5 = "0.7.0"
 shared_child = "1.0.0"
+tar = "0.4.40"
+flate2 = "1.0.30"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
