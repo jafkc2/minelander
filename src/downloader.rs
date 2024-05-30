@@ -9,8 +9,7 @@ use std::{
 };
 use zip::ZipArchive;
 
-#[cfg(target_os = "linux")]
-use std::os::unix::prelude::PermissionsExt;
+
 
 pub enum State {
     GettingDownloadList(String, VersionType),
@@ -22,8 +21,9 @@ pub enum State {
         download: reqwest::Response,
         folder_to_store: String,
         file_to_write: File,
+        java: Java,
     },
-    ExtractingJava(String),
+    ExtractingJava(String, Java),
     DownloadingMissingFiles(DownloadList),
     Idle,
 }
@@ -64,6 +64,7 @@ pub fn start<I: 'static + Hash + Copy + Send + Sync>(
 pub enum Java {
     J8,
     J17,
+    J21
 }
 pub fn start_java<I: 'static + Hash + Copy + Send + Sync>(
     id: I,
@@ -316,15 +317,22 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
             let java_url = match java{
                 Java::J8 => {
                     match os{
-                        "windows" => "https://raw.githubusercontent.com/JafKc/siglauncher-jvm/main/binaries/java8-windows.zip",
-                        "linux" => "https://raw.githubusercontent.com/JafKc/siglauncher-jvm/main/binaries/java8-linux.zip",
+                        "windows" => "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u412-b08/OpenJDK8U-jre_x64_windows_hotspot_8u412b08.zip",
+                        "linux" => "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u412-b08/OpenJDK8U-jre_x64_linux_hotspot_8u412b08.tar.gz",
                         _ => panic!("Unsuported system.")
                     }
                 },
                 Java::J17 => {
                     match os{
-                        "windows" => "https://raw.githubusercontent.com/JafKc/siglauncher-jvm/main/binaries/java17-windows.zip",
-                        "linux" => "https://raw.githubusercontent.com/JafKc/siglauncher-jvm/main/binaries/java17-linux.zip",
+                        "windows" => "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.9%2B9.1/OpenJDK17U-jre_x64_windows_hotspot_17.0.9_9.zip",
+                        "linux" => "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jre_x64_linux_hotspot_17.0.11_9.tar.gz",
+                        _ => panic!("Unsuported system.")
+                    }
+                },
+                Java::J21 => {
+                    match os{
+                        "windows" => "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jre_x64_windows_hotspot_21.0.3_9.zip",
+                        "linux" => "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jre_x64_linux_hotspot_21.0.3_9.tar.gz",
                         _ => panic!("Unsuported system.")
                     }
                 },
@@ -348,8 +356,14 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
 
             let download = reqwest::get(java_url).await;
 
+            let file_name = match os {
+                "linux" => "compressed.tar.gz",
+                "windows" => "compressed.zip",
+                _ => panic!("System not supported."),
+            };
+
             let file_to_write =
-                match File::create(format!("{}/compressed.zip", folder_to_store_download)) {
+                match File::create(format!("{}/{}", folder_to_store_download, file_name)) {
                     Ok(ok) => ok,
                     Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
                 };
@@ -365,6 +379,7 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                             download: d,
                             folder_to_store: folder_to_store_download,
                             file_to_write,
+                            java,
                         },
                     )
                 }
@@ -378,6 +393,7 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
             mut download,
             folder_to_store,
             mut file_to_write,
+            java,
         } => match download.chunk().await {
             Ok(Some(chunk)) => {
                 let downloaded = downloaded + chunk.len() as u64;
@@ -399,44 +415,91 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                         download,
                         folder_to_store,
                         file_to_write,
+                        java,
                     },
                 )
             }
             Ok(None) => (
                 (id, Progress::JavaDownloadFinished),
-                State::ExtractingJava(folder_to_store),
+                State::ExtractingJava(folder_to_store, java),
             ),
             Err(e) => ((id, Progress::Errored(e.to_string())), State::Idle),
         },
 
-        State::ExtractingJava(folder) => {
-            let compressed_java = match File::open(format!("{}/compressed.zip", folder)) {
+        State::ExtractingJava(folder, java) => {
+            let os = std::env::consts::OS;
+
+            let file_name = match os {
+                "linux" => "compressed.tar.gz",
+                "windows" => "compressed.zip",
+                _ => panic!("System not supported."),
+            };
+
+            let compressed_java = match File::open(format!("{}/{}", folder, file_name)) {
                 Ok(ok) => ok,
                 Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
             };
 
-            let mut archive = ZipArchive::new(BufReader::new(compressed_java)).unwrap();
+            let java_folder_name = match java {
+                Java::J8 => "java8",
+                Java::J17 => "java17",
+                Java::J21 => "java21",
+            };
 
-            for i in 0..archive.len() {
-                let mut file = archive.by_index(i).unwrap();
-                let outpath = format!("{}/{}", &folder, file.mangled_name().to_string_lossy());
-                if file.is_dir() {
-                    std::fs::create_dir_all(&outpath).unwrap();
-                } else {
-                    let mut outfile = File::create(&outpath).unwrap();
-                    std::io::copy(&mut file, &mut outfile).unwrap();
+            let mut f_folder_name = String::new();
 
-                    #[cfg(target_os = "linux")]
-                    if file.mangled_name().to_str().unwrap().ends_with("/java")
-                        && std::env::consts::OS == "linux"
-                    {
-                        let mut permission = fs::metadata(&outpath).unwrap().permissions();
-                        permission.set_mode(0o755);
-                        fs::set_permissions(&outpath, permission).unwrap();
+            match os {
+                "windows" => {
+                    let mut archive = ZipArchive::new(BufReader::new(compressed_java)).unwrap();
+                    let mut got_first = false;
+
+                    for i in 0..archive.len() {
+                        let mut file = archive.by_index(i).unwrap();
+
+                        if !got_first{
+                            f_folder_name = file.name().to_string();
+                            got_first = true;
+                        }
+                        
+
+                        let outpath =
+                            format!("{}/{}", &folder, file.mangled_name().to_string_lossy());
+                        if file.is_dir() {
+                            std::fs::create_dir_all(&outpath).unwrap();
+                        } else {
+                            let mut outfile = File::create(&outpath).unwrap();
+                            std::io::copy(&mut file, &mut outfile).unwrap();
+                        }
                     }
+
                 }
+                "linux" => {
+                    let gz_decoder = flate2::read::GzDecoder::new(BufReader::new(compressed_java));
+
+                    let mut archive = tar::Archive::new(gz_decoder);
+
+
+                    let archive_iterator = archive.entries().unwrap();
+                    
+                    let mut got_first = false;
+                    
+                    for i in archive_iterator{
+                        let mut i = i.unwrap();
+
+                        if !got_first{
+                            f_folder_name = i.header().path().unwrap().file_name().unwrap().to_string_lossy().into_owned();
+                            got_first = true;
+                        }
+                        i.unpack_in(&folder).unwrap();
+                    }
+
+
+                }
+                _ => panic!("System not supported."),
             }
-            fs::remove_file(format!("{}/compressed.zip", folder)).unwrap();
+            
+            fs::rename(format!("{}/{}", folder, f_folder_name), format!("{}/{}", folder, java_folder_name)).unwrap();
+            fs::remove_file(format!("{}/{}", folder, file_name)).unwrap();
 
             ((id, Progress::JavaExtracted), State::Idle)
         }

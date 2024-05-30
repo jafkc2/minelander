@@ -198,6 +198,7 @@ impl Minelander {
             "System Java" => launcher::JavaType::System,
             "Java 8 (Minelander)" => launcher::JavaType::LauncherJava8,
             "Java 17 (Minelander)" => launcher::JavaType::LauncherJava17,
+            "Java 21 (Minelander)" => launcher::JavaType::LauncherJava21,
             _ => launcher::JavaType::Custom,
         };
 
@@ -366,6 +367,15 @@ impl Application for Minelander {
                                     });
                                     let index = self.downloaders.len() - 1;
                                     self.downloaders[index].start_java(downloader::Java::J17)
+                                }
+                                launcher::Missing::Java21 => {
+                                    self.launcher.state = LauncherState::Waiting;
+                                    self.downloaders.push(Downloader {
+                                        state: DownloaderState::Idle,
+                                        id: self.downloaders.len(),
+                                    });
+                                    let index = self.downloaders.len() - 1;
+                                    self.downloaders[index].start_java(downloader::Java::J21)
                                 }
                                 launcher::Missing::VersionFiles(vec) => {
                                     self.game_state_text =

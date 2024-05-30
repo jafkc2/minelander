@@ -200,7 +200,6 @@ pub fn get_screen_content(
         ]
         .spacing(15)
         .max_width(800),
-        
 
         Screen::Installation => {
             let vanilla_pick_list = pick_list(
@@ -220,32 +219,31 @@ pub fn get_screen_content(
             .placeholder("Select a version")
             .width(250)
             .text_size(15);
-            
-            let vanilla_button_message = match minelander.vanilla_version_to_download.is_empty(){
+
+            let vanilla_button_message = match minelander.vanilla_version_to_download.is_empty() {
                 true => None,
                 false => Some(Message::InstallVersion(downloader::VersionType::Vanilla)),
             };
 
-            let fabric_button_message = match minelander.fabric_version_to_download.is_empty(){
+            let fabric_button_message = match minelander.fabric_version_to_download.is_empty() {
                 true => None,
-                false => Some(Message::InstallVersion(downloader::VersionType::Fabric))
+                false => Some(Message::InstallVersion(downloader::VersionType::Fabric)),
             };
 
             let vanilla_install_button = button(
                 text("Install")
                     .size(20)
-                    .horizontal_alignment(alignment::Horizontal::Center)
+                    .horizontal_alignment(alignment::Horizontal::Center),
             )
             .width(250)
             .height(40)
             .on_press_maybe(vanilla_button_message)
             .style(theme::Button::Secondary);
 
-
             let fabric_install_button = button(
                 text("Install")
                     .size(20)
-                    .horizontal_alignment(alignment::Horizontal::Center)
+                    .horizontal_alignment(alignment::Horizontal::Center),
             )
             .width(250)
             .height(40)
