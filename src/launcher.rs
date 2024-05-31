@@ -338,10 +338,11 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                         17
                     };
 
-                    if java_version >17 && !Path::new(&format!("{}/minelander_java/java21", minecraft_dir)).exists(){
+                    if java_version > 17
+                        && !Path::new(&format!("{}/minelander_java/java21", minecraft_dir)).exists()
+                    {
                         return ((id, Progress::Checked(Some(Missing::Java21))), State::Idle);
-
-                    }else if java_version > 8
+                    } else if java_version > 8
                         && !Path::new(&format!("{}/minelander_java/java17", minecraft_dir)).exists()
                     {
                         return ((id, Progress::Checked(Some(Missing::Java17))), State::Idle);
@@ -823,25 +824,22 @@ fn automatic_java(mut p: Value, game_version: &String, ismodded: bool) -> (Strin
     let java17args = "-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3";
     let java8args = "-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+ParallelRefProcEnabled -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:+AggressiveOpts -XX:MaxInlineLevel=15 -XX:MaxVectorSize=32 -XX:ThreadPriorityPolicy=1 -XX:+UseNUMA -XX:+UseDynamicNumberOfGCThreads -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=350M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -Dgraal.CompilerConfiguration=community";
 
-
-    if requiredjavaversion > 17{
+    if requiredjavaversion > 17 {
         (
             autojava21path,
-            java21args.split(' ').map(|s| s.to_owned()).collect()
+            java21args.split(' ').map(|s| s.to_owned()).collect(),
         )
     } else if requiredjavaversion > 8 || requiredjavaversion == 0 {
         (
             autojava17path,
-            java17args.split(' ').map(|s| s.to_owned()).collect()
+            java17args.split(' ').map(|s| s.to_owned()).collect(),
         )
     } else {
         (
             autojava8path,
-            java8args.split(' ').map(|s| s.to_owned()).collect()
+            java8args.split(' ').map(|s| s.to_owned()).collect(),
         )
     }
-
-
 }
 
 fn libmanager(p: &Value) -> String {

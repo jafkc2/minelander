@@ -2,14 +2,14 @@ use iced::subscription;
 use reqwest::{self, Client};
 use serde_json::Value;
 use std::{
+    env,
     fs::{self, File},
     hash::Hash,
     io::{BufReader, Read, Write},
+    os::unix::fs::PermissionsExt,
     path::Path,
 };
 use zip::ZipArchive;
-
-
 
 pub enum State {
     GettingDownloadList(String, VersionType),
@@ -25,6 +25,13 @@ pub enum State {
     },
     ExtractingJava(String, Java),
     DownloadingMissingFiles(DownloadList),
+    PreparingUpdate(String),
+    DownloadingUpdate {
+        downloaded: u64,
+        total: u64,
+        download: reqwest::Response,
+        exec: File,
+    },
     Idle,
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -46,6 +53,10 @@ pub enum Progress {
     MissingFilesDownloadProgressed(u16),
     MissingFilesDownloadFinished,
 
+    UpdateStarted(u8),
+    UpdateProgressed(u8, u8, u8),
+    UpdateFinished,
+
     Errored(String),
 }
 
@@ -64,7 +75,7 @@ pub fn start<I: 'static + Hash + Copy + Send + Sync>(
 pub enum Java {
     J8,
     J17,
-    J21
+    J21,
 }
 pub fn start_java<I: 'static + Hash + Copy + Send + Sync>(
     id: I,
@@ -80,6 +91,15 @@ pub fn start_missing_files<I: 'static + Hash + Copy + Send + Sync>(
     files: DownloadList,
 ) -> iced::Subscription<(I, Progress)> {
     subscription::unfold(id, State::DownloadingMissingFiles(files), move |state| {
+        download(id, state)
+    })
+}
+
+pub fn start_update<I: 'static + Hash + Copy + Send + Sync>(
+    id: I,
+    url: String,
+) -> iced::Subscription<(I, Progress)> {
+    subscription::unfold(id, State::PreparingUpdate(url), move |state| {
         download(id, state)
     })
 }
@@ -456,11 +476,10 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                     for i in 0..archive.len() {
                         let mut file = archive.by_index(i).unwrap();
 
-                        if !got_first{
+                        if !got_first {
                             f_folder_name = file.name().to_string();
                             got_first = true;
                         }
-                        
 
                         let outpath =
                             format!("{}/{}", &folder, file.mangled_name().to_string_lossy());
@@ -471,34 +490,41 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                             std::io::copy(&mut file, &mut outfile).unwrap();
                         }
                     }
-
                 }
                 "linux" => {
                     let gz_decoder = flate2::read::GzDecoder::new(BufReader::new(compressed_java));
 
                     let mut archive = tar::Archive::new(gz_decoder);
 
-
                     let archive_iterator = archive.entries().unwrap();
-                    
+
                     let mut got_first = false;
-                    
-                    for i in archive_iterator{
+
+                    for i in archive_iterator {
                         let mut i = i.unwrap();
 
-                        if !got_first{
-                            f_folder_name = i.header().path().unwrap().file_name().unwrap().to_string_lossy().into_owned();
+                        if !got_first {
+                            f_folder_name = i
+                                .header()
+                                .path()
+                                .unwrap()
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .into_owned();
                             got_first = true;
                         }
                         i.unpack_in(&folder).unwrap();
                     }
-
-
                 }
                 _ => panic!("System not supported."),
             }
-            
-            fs::rename(format!("{}/{}", folder, f_folder_name), format!("{}/{}", folder, java_folder_name)).unwrap();
+
+            fs::rename(
+                format!("{}/{}", folder, f_folder_name),
+                format!("{}/{}", folder, java_folder_name),
+            )
+            .unwrap();
             fs::remove_file(format!("{}/{}", folder, file_name)).unwrap();
 
             ((id, Progress::JavaExtracted), State::Idle)
@@ -574,6 +600,74 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                 }),
             )
         }
+
+        State::PreparingUpdate(url) => {
+            let exec_path = env::current_exe().unwrap();
+            fs::rename(&exec_path, exec_path.with_extension("old")).unwrap();
+            let exec_file = File::create(&exec_path).unwrap();
+
+            #[cfg(target_os = "linux")]
+            {
+                let mut permission = fs::metadata(&exec_path).unwrap().permissions();
+                permission.set_mode(0o755);
+                fs::set_permissions(&exec_path, permission).unwrap();
+            }
+
+            let download = reqwest::get(url).await;
+
+            match download {
+                Ok(d) => {
+                    let size = d.content_length().unwrap();
+                    (
+                        (id, Progress::UpdateStarted((size / 1048576) as u8)),
+                        State::DownloadingUpdate {
+                            downloaded: 0,
+                            total: size,
+                            download: d,
+                            exec: exec_file,
+                        },
+                    )
+                }
+                Err(e) => ((id, Progress::Errored(e.to_string())), State::Idle),
+            }
+        }
+
+        State::DownloadingUpdate {
+            downloaded,
+            total,
+            mut download,
+            mut exec,
+        } => match download.chunk().await {
+            Ok(Some(chunk)) => {
+                let downloaded = downloaded + chunk.len() as u64;
+                let percentage = ((downloaded as f32 / total as f32) * 100.) as u8;
+                let mb_downloaded = (downloaded / 1048576) as u8;
+
+                match exec.write_all(&chunk) {
+                    Ok(ok) => ok,
+                    Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
+                }
+
+                (
+                    (
+                        id,
+                        Progress::UpdateProgressed(
+                            mb_downloaded,
+                            percentage,
+                            (total / 1048576) as u8,
+                        ),
+                    ),
+                    State::DownloadingUpdate {
+                        downloaded,
+                        total,
+                        download,
+                        exec,
+                    },
+                )
+            }
+            Ok(None) => ((id, Progress::UpdateFinished), State::Idle),
+            Err(e) => ((id, Progress::Errored(e.to_string())), State::Idle),
+        },
     }
 }
 

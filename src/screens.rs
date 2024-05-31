@@ -390,25 +390,56 @@ pub fn get_screen_content(
             .size(12)
         ]
         .spacing(25),
-        Screen::Info => {
+        Screen::InfoAndUpdates => {
             let credits = format!("Minelander {} by jafkc2.", env!("CARGO_PKG_VERSION"));
-            column![
-                text("Info").size(50),
-                container(
-                    column![
-                        text(credits),
-                        text("Made with Rust and the Iced GUI library."),
-                        row![
-                            text("Repository hosted at Github."),
-                            button(text("Click here to redirect.").size(12))
-                                .on_press(Message::Github)
-                        ]
-                        .spacing(10)
-                    ]
-                    .spacing(45)
+
+            let update_text = if minelander.update_available {
+                format!(
+                    "Update available: {} -> {}",
+                    env!("CARGO_PKG_VERSION"),
+                    minelander.last_version
                 )
-                .style(theme::Container::BlackContainer)
-                .padding(20)
+            } else {
+                minelander.last_version.clone()
+            };
+
+            let update_button_message = match minelander.update_available {
+                true => Some(Message::Update),
+                false => None,
+            };
+
+            column![
+                text("Info and updates").size(50),
+                row![
+                    container(
+                        column![
+                            text("Updates").size(15),
+                            text(update_text),
+                            button("Update")
+                                .on_press_maybe(update_button_message)
+                                .style(theme::Button::Secondary)
+                                .padding(5),
+                            text(minelander.update_text.clone())
+                        ]
+                        .spacing(30)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(20),
+                    container(
+                        column![
+                            text("Info").size(15),
+                            text(credits),
+                            row![button(text("Github repository").size(12))
+                                .on_press(Message::Github)
+                                .padding(5)]
+                            .spacing(10)
+                        ]
+                        .spacing(30)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(20)
+                ]
+                .spacing(15),
             ]
             .spacing(25)
         }

@@ -28,6 +28,7 @@ mod launcher;
 mod theme;
 use theme::Theme;
 mod screens;
+mod update_manager;
 
 fn main() -> iced::Result {
     if !Path::new(&get_minecraft_dir()).exists() {
@@ -35,6 +36,14 @@ fn main() -> iced::Result {
             Ok(_) => println!("Minecraft directory was created."),
             Err(e) => println!("Failed to create Minecraft directory: {e}"),
         };
+    }
+
+    let old_exec = env::current_exe().unwrap().with_extension("old");
+    if !Path::new(&env::current_exe().unwrap().with_extension(&old_exec)).exists() {
+        match fs::remove_file(old_exec) {
+            Ok(ok) => ok,
+            Err(e) => println!("Failed to delete old executable: {e}"),
+        }
     }
 
     let icon = include_bytes!("icons/minelander.png");
@@ -98,6 +107,11 @@ struct Minelander {
     java_download_size: u8,
 
     game_proccess: GameProcess,
+
+    update_available: bool,
+    last_version: String,
+    update_url: String,
+    update_text: String,
 }
 
 #[derive(Default)]
@@ -117,7 +131,7 @@ pub enum Screen {
     GameInstance,
     Logs,
     ModifyCommand,
-    Info,
+    InfoAndUpdates,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -157,6 +171,8 @@ enum Message {
     GameInstanceToAddChanged(String),
     GameInstanceAdded,
 
+    CheckedUpdates(Result<(String, String), String>),
+    Update,
     Github,
 
     Exit,
@@ -326,7 +342,14 @@ impl Application for Minelander {
                 needs_to_update_download_list: true,
                 ..Default::default()
             },
-            Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
+            //Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
+            Command::batch(vec![
+                Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
+                Command::perform(
+                    update_manager::check_launcher_updates(),
+                    Message::CheckedUpdates,
+                ),
+            ]),
         )
     }
 
@@ -768,6 +791,32 @@ impl Application for Minelander {
 
                         self.launch();
                     }
+                    downloader::Progress::UpdateStarted(total) => {
+                        self.update_text = format!("Downloading update. 0 / {total} MiB (0%)")
+                    }
+                    downloader::Progress::UpdateProgressed(downloaded, percentage, total) => {
+                        self.update_text = format!(
+                            "Downloading update. {downloaded} / {total} MiB ({percentage}%)"
+                        )
+                    }
+                    downloader::Progress::UpdateFinished => {
+                        self.update_text = String::from("Update installed successfully.");
+                        for (index, downloader) in self.downloaders.iter().enumerate() {
+                            if downloader.id == id {
+                                self.downloaders.remove(index);
+                                break;
+                            }
+                        }
+
+                        let mut new_exe_path = env::current_exe().unwrap();
+                        new_exe_path.pop();
+                        new_exe_path = new_exe_path.join("minelander");
+
+                        match std::process::Command::new(new_exe_path).spawn() {
+                            Ok(_) => std::process::exit(0),
+                            Err(e) => panic!("{}", e),
+                        }
+                    }
                 }
                 Command::none()
             }
@@ -811,6 +860,27 @@ impl Application for Minelander {
                     Ok(ok) => ok,
                     Err(e) => println!("Failed to open Github repository in browser: {e}"),
                 }
+
+                Command::none()
+            }
+            Message::CheckedUpdates(result) => {
+                match result {
+                    Ok((url, last_version)) => {
+                        self.update_available = true;
+                        self.update_url = url;
+                        self.last_version = last_version;
+                    }
+                    Err(e) => self.last_version = e,
+                }
+                Command::none()
+            }
+            Message::Update => {
+                self.downloaders.push(Downloader {
+                    state: DownloaderState::Idle,
+                    id: self.downloaders.len(),
+                });
+                let index = self.downloaders.len() - 1;
+                self.downloaders[index].start_update(self.update_url.clone());
 
                 Command::none()
             }
@@ -863,16 +933,16 @@ impl Application for Minelander {
                     .height(Length::Fixed(42.)),
                     "Account (WIP)"
                 ),
-                // Info
+                // Info and updates
                 action(
                     button(svg(svg::Handle::from_memory(
                         include_bytes!("icons/info.svg").as_slice()
                     )))
-                    .on_press(Message::ChangeScreen(Screen::Info))
+                    .on_press(Message::ChangeScreen(Screen::InfoAndUpdates))
                     .style(theme::Button::Transparent)
                     .width(Length::Fixed(42.))
                     .height(Length::Fixed(42.)),
-                    "Info"
+                    "Info and updates"
                 )
             ]
             .spacing(20)
@@ -1101,6 +1171,7 @@ enum DownloaderState {
     Downloading(String, downloader::VersionType),
     JavaDownloading(downloader::Java),
     DownloadingMissingFiles(downloader::DownloadList),
+    Update(String),
 }
 
 impl Default for Downloader {
@@ -1125,6 +1196,9 @@ impl Downloader {
     pub fn start_java(&mut self, java: downloader::Java) {
         self.state = DownloaderState::JavaDownloading(java)
     }
+    pub fn start_update(&mut self, url: String) {
+        self.state = DownloaderState::Update(url)
+    }
     pub fn start_missing_files(&mut self, files: Vec<downloader::Download>) {
         let download_list = downloader::DownloadList {
             download_list: files,
@@ -1145,6 +1219,9 @@ impl Downloader {
             DownloaderState::DownloadingMissingFiles(download_list) => {
                 downloader::start_missing_files(self.id, download_list.clone())
                     .map(Message::ManageDownload)
+            }
+            DownloaderState::Update(url) => {
+                downloader::start_update(self.id, url.to_string()).map(Message::ManageDownload)
             }
         }
     }
