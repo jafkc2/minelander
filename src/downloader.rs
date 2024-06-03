@@ -6,7 +6,6 @@ use std::{
     fs::{self, File},
     hash::Hash,
     io::{BufReader, Read, Write},
-    os::unix::fs::PermissionsExt,
     path::Path,
 };
 use zip::ZipArchive;
@@ -608,6 +607,7 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
 
             #[cfg(target_os = "linux")]
             {
+                use std::os::unix::fs::PermissionsExt;
                 let mut permission = fs::metadata(&exec_path).unwrap().permissions();
                 permission.set_mode(0o755);
                 fs::set_permissions(&exec_path, permission).unwrap();
