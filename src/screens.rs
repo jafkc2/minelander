@@ -366,12 +366,12 @@ pub fn get_screen_content(
         .max_width(800),
 
         Screen::Logs => column![
-            text("Game logs").size(50),
-            container(scrollable(text(minelander.logs.join("\n")).size(10)).width(700.0))
+            text("Game logs").size(25),
+            container(scrollable(text(minelander.logs.join("\n")).size(10)).width(700.0).height(345.))
                 .style(theme::Container::BlackContainer)
-                .padding(10)
+                .padding(5)
         ]
-        .spacing(15),
+        .spacing(10),
         Screen::ModifyCommand => column![
             text("Modify game command").size(50),
             text("Wraper commands").size(25),
