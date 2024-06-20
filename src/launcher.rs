@@ -365,15 +365,15 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             let minecraft_directory = get_minecraft_dir();
 
             let game_dir = if game_settings.game_directory == *"Default" {
-                env::set_current_dir(&minecraft_directory).expect("Failed to open profile folder!");
+                env::set_current_dir(&minecraft_directory).expect("Failed to open instance folder!");
                 minecraft_directory.clone()
             } else {
                 let gamedirpath = format!(
-                    "{}/minelander_profiles/{}",
+                    "{}/minelander_instances/{}",
                     minecraft_directory, game_settings.game_directory
                 );
                 fs::create_dir_all(&gamedirpath).unwrap();
-                env::set_current_dir(&gamedirpath).expect("Failed to open profile folder!");
+                env::set_current_dir(&gamedirpath).expect("Failed to open instance folder!");
                 gamedirpath
             };
 
