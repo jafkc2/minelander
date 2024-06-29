@@ -280,6 +280,8 @@ impl Application for Minelander {
         jvmnames.push("System Java".to_owned());
         jvmnames.push("Java 8 (Minelander)".to_owned());
         jvmnames.push("Java 17 (Minelander)".to_owned());
+        jvmnames.push("Java 21 (Minelander)".to_owned());
+
         // Get Java info
 
         // Game instance folder creation if it doesn't exist
@@ -529,6 +531,8 @@ impl Application for Minelander {
                     || selected_jvm_name.as_str() == "Automatic"
                     || selected_jvm_name.as_str() == "Java 8 (Minelander)"
                     || selected_jvm_name.as_str() == "Java 17 (Minelander)"
+                    || selected_jvm_name.as_str() == "Java 21 (Minelander)"
+
                 {
                     newjvm.push(selected_jvm_name.clone());
                     newjvm.push(String::new());

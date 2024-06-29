@@ -402,7 +402,7 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
                 &minecraft_directory, game_settings.game_version
             );
 
-            let mut library_list = libmanager(&p);
+            let mut library_list = lib_manager(&p);
 
             let mut version_jvm_args = get_game_jvm_args(&p, &native_directory);
 
@@ -777,7 +777,12 @@ fn get_game_jvm_args(p: &Value, nativedir: &str) -> Vec<String> {
                     value = value.replace("${classpath_separator}", separator);
                 }
 
-                if value != "${classpath}" || value != "-cp" {
+                if value.contains("${version_name}"){
+                    let game_ver = p["id"].as_str().unwrap();
+                    value = value.replace("${version_name}", game_ver)
+                }
+                
+                if !value.contains("${classpath}") && !value.contains("-cp") {
                     version_jvm_args.push(value.to_string())
                 }
             }
@@ -842,7 +847,7 @@ fn automatic_java(mut p: Value, game_version: &String, ismodded: bool) -> (Strin
     }
 }
 
-fn libmanager(p: &Value) -> String {
+fn lib_manager(p: &Value) -> String {
     let os = std::env::consts::OS;
 
     let mc_dir = get_minecraft_dir();
@@ -985,7 +990,7 @@ fn modded(
         &format!("{}/versions/{}/natives", &mc_dir, game_version),
     );
 
-    let vanilla_library_list = &libmanager(&vjson);
+    let vanilla_library_list = &lib_manager(&vjson);
 
     (
         vanilla_version_jvm_args,
