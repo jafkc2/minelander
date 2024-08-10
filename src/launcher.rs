@@ -63,7 +63,7 @@ pub fn start<I: 'static + Hash + Copy + Send + Sync>(
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct GameSettings {
-    pub username: String,
+    pub account: super::auth::MinecraftAccount,
     pub game_version: String,
     pub jvm: String,
     pub jvmargs: Vec<String>,
@@ -365,7 +365,8 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             let minecraft_directory = get_minecraft_dir();
 
             let game_dir = if game_settings.game_directory == *"Default" {
-                env::set_current_dir(&minecraft_directory).expect("Failed to open instance folder!");
+                env::set_current_dir(&minecraft_directory)
+                    .expect("Failed to open instance folder!");
                 minecraft_directory.clone()
             } else {
                 let gamedirpath = format!(
@@ -409,19 +410,21 @@ async fn launcher<I: Copy>(id: I, state: State) -> ((I, Progress), State) {
             //
             let mut version_game_args = vec![];
 
-            // uuid
-
-            let uuid = get_uuid_from_api(&game_settings.username).await;
+            let uuid = if game_settings.account.uuid.is_empty() {
+                generate_uuid(&game_settings.account.username)
+            } else {
+                game_settings.account.uuid
+            };
 
             // this is used to get game args.
             let gamedata = vec![
-                game_settings.username,
+                game_settings.account.username,
                 game_settings.game_version.clone(),
                 game_dir.to_string(),
                 assets_dir,
                 asset_index,
                 uuid,
-                String::from("[pro]"),
+                game_settings.account.token,
                 String::from("{}"),
                 String::from("legacy"),
                 String::from("Release"),
@@ -777,11 +780,11 @@ fn get_game_jvm_args(p: &Value, nativedir: &str) -> Vec<String> {
                     value = value.replace("${classpath_separator}", separator);
                 }
 
-                if value.contains("${version_name}"){
+                if value.contains("${version_name}") {
                     let game_ver = p["id"].as_str().unwrap();
                     value = value.replace("${version_name}", game_ver)
                 }
-                
+
                 if !value.contains("${classpath}") && !value.contains("-cp") {
                     version_jvm_args.push(value.to_string())
                 }
@@ -1018,7 +1021,7 @@ fn command_exists(command_name: &str) -> bool {
     false
 }
 
-async fn get_uuid_from_api(username: &str) -> String {
+pub async fn get_uuid_from_api(username: &str) -> String {
     match reqwest::get(format!(
         "https://api.mojang.com/users/profiles/minecraft/{}",
         username

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use self::widget::Element;
 use iced::{
-    alignment,
+    alignment, clipboard,
     event::listen_with,
     executor,
     widget::{button, column, container, row, svg, tooltip, Button},
@@ -27,6 +27,7 @@ mod downloader;
 mod launcher;
 mod theme;
 use theme::Theme;
+mod auth;
 mod screens;
 mod update_manager;
 
@@ -73,9 +74,12 @@ struct Minelander {
     downloaders: Vec<Downloader>,
     logs: Vec<String>,
 
-    username: String,
+    current_account: Account,
+    current_account_mc_data: auth::MinecraftAccount,
+
     current_version: String,
     game_state_text: String,
+    game_state_text_2: String,
 
     game_ram: f64,
     current_java_name: String,
@@ -112,6 +116,22 @@ struct Minelander {
     last_version: String,
     update_url: String,
     update_text: String,
+
+    accounts: Vec<Account>,
+
+    auth_code: auth::AuthCode,
+    auth_token: auth::AuthToken,
+    auth_xbox_data: auth::XboxLiveData,
+    auth_status: String,
+
+    local_account_to_add_name: String,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
+struct Account {
+    microsoft: bool,
+    username: String,
+    refresh_token: String,
 }
 
 #[derive(Default)]
@@ -132,6 +152,9 @@ pub enum Screen {
     Logs,
     ModifyCommand,
     InfoAndUpdates,
+    Accounts,
+    MicrosoftAccount,
+    LocalAccount,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -141,7 +164,7 @@ enum Message {
     CloseGame,
     ManageGameInfo((usize, launcher::Progress)),
 
-    UsernameChanged(String),
+    CurrentAccountChanged(String),
     VersionChanged(String),
 
     JavaChanged(String),
@@ -173,14 +196,28 @@ enum Message {
 
     CheckedUpdates(Result<(String, String), String>),
     Update,
-    Github,
+
+    OpenURL(String),
+    CopyToClipboard(String),
+
+    GotAuthCode(auth::AuthCode),
+    ManageAuth((usize, auth::WaitProgress)),
+    GotXboxToken(auth::XboxLiveData),
+    GotMinecraftAuthData(auth::MinecraftAccount),
+    RefreshLogin(Option<auth::MinecraftAccount>),
+
+    LocalAccountNameChanged(String),
+    AddedLocalAccount,
+    RemoveAccount(String),
 
     Exit,
 }
 
 impl Minelander {
     pub fn launch(&mut self) {
-        if updateusersettingsfile(self.username.clone(), self.current_version.clone()).is_err() {
+        if updateusersettingsfile(self.current_account.clone(), self.current_version.clone())
+            .is_err()
+        {
             println!("Failed to save user settings!")
         };
 
@@ -219,7 +256,7 @@ impl Minelander {
         };
 
         let game_settings = launcher::GameSettings {
-            username: self.username.clone(),
+            account: self.current_account_mc_data.clone(),
             game_version: self.current_version.clone(),
             jvm: self.current_java.path.clone(),
             jvmargs: self
@@ -236,6 +273,7 @@ impl Minelander {
         };
         self.launcher.start(game_settings);
         self.logs.clear();
+        self.current_account_mc_data.token = String::new();
     }
 }
 
@@ -324,10 +362,37 @@ impl Application for Minelander {
             .collect::<Vec<_>>();
         new_game_instance_list.push("Default".to_string());
 
+        let mut accounts = vec![];
+
+        if let Some(accounts_vec) = p["accounts"].as_array() {
+            for account in accounts_vec {
+                let microsoft = account["microsoft"].as_bool().unwrap();
+                let username = account["username"].as_str().unwrap().to_string();
+                let refresh_token = account["refresh_token"].as_str().unwrap().to_string();
+
+                accounts.push(Account {
+                    microsoft,
+                    username,
+                    refresh_token,
+                })
+            }
+        }
+
+        let current_account = Account {
+            microsoft: p["current_account"]["microsoft"].as_bool().unwrap(),
+            username: p["current_account"]["username"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            refresh_token: p["current_account"]["refresh_token"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        };
         (
             Minelander {
                 screen: Screen::Main,
-                username: p["username"].as_str().unwrap().to_owned(),
+                current_account: current_account,
                 current_version: p["current_version"].as_str().unwrap().to_owned(),
                 game_ram: p["game_ram"].as_f64().unwrap(),
                 current_java_name: currentjava.name.clone(),
@@ -342,6 +407,7 @@ impl Application for Minelander {
                 java_name_list: jvmnames,
                 game_instance_list: new_game_instance_list,
                 needs_to_update_download_list: true,
+                accounts,
                 ..Default::default()
             },
             //Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
@@ -363,9 +429,27 @@ impl Application for Minelander {
         match message {
             Message::Launch => {
                 if !self.restrict_launch
+                    && !self.current_account.username.is_empty()
                     && !self.current_version.is_empty()
-                    && !self.username.is_empty()
                 {
+                    if self.current_account.microsoft
+                        && self.current_account_mc_data.token.is_empty()
+                    {
+                        self.game_state_text = String::from("Fetching account data...");
+
+                        return Command::perform(
+                            auth::login_with_refresh_token(
+                                self.current_account.refresh_token.clone(),
+                            ),
+                            Message::RefreshLogin,
+                        );
+                    } else {
+                        self.current_account_mc_data = auth::MinecraftAccount {
+                            username: self.current_account.username.clone(),
+                            token: "[pro]".to_string(),
+                            uuid: String::new(),
+                        }
+                    }
                     self.launch();
                 }
                 Command::none()
@@ -457,13 +541,7 @@ impl Application for Minelander {
 
                 Command::none()
             }
-            Message::UsernameChanged(new_username) => {
-                if new_username.len() < 16 {
-                    self.username = new_username
-                }
 
-                Command::none()
-            }
             Message::VersionChanged(new_version) => {
                 self.current_version = new_version;
                 Command::none()
@@ -483,26 +561,38 @@ impl Application for Minelander {
 
                 self.screen = new_screen.clone();
 
-                if new_screen == Screen::Main {
-                    return Command::perform(
-                        launcher::getinstalledversions(),
-                        Message::LoadVersionList,
-                    );
-                } else if new_screen == Screen::Installation
-                    && (!self.vanilla_versions_download_list.is_empty()
-                        || !self.fabric_versions_download_list.is_empty()
-                        || self.needs_to_update_download_list)
-                {
-                    let show_all_versions = self.show_all_versions_in_download_list;
-                    return Command::perform(
-                        async move {
-                            downloader::get_downloadable_version_list(show_all_versions).await
-                        },
-                        Message::GotDownloadList,
-                    );
-                }
+                match new_screen {
+                    Screen::Main => {
+                        Command::perform(launcher::getinstalledversions(), Message::LoadVersionList)
+                    }
 
-                Command::none()
+                    Screen::Installation => {
+                        if !self.vanilla_versions_download_list.is_empty()
+                            || !self.fabric_versions_download_list.is_empty()
+                            || self.needs_to_update_download_list
+                        {
+                            let show_all_versions = self.show_all_versions_in_download_list;
+                            return Command::perform(
+                                async move {
+                                    downloader::get_downloadable_version_list(show_all_versions)
+                                        .await
+                                },
+                                Message::GotDownloadList,
+                            );
+                        } else {
+                            Command::none()
+                        }
+                    }
+                    Screen::MicrosoftAccount => {
+                        self.auth_status = String::from("Getting code and link...");
+                        Command::perform(
+                            async move { auth::request_code().await },
+                            Message::GotAuthCode,
+                        )
+                    }
+
+                    _ => Command::none(),
+                }
             }
             Message::OpenGameFolder => {
                 open::that(launcher::get_minecraft_dir()).unwrap();
@@ -532,7 +622,6 @@ impl Application for Minelander {
                     || selected_jvm_name.as_str() == "Java 8 (Minelander)"
                     || selected_jvm_name.as_str() == "Java 17 (Minelander)"
                     || selected_jvm_name.as_str() == "Java 21 (Minelander)"
-
                 {
                     newjvm.push(selected_jvm_name.clone());
                     newjvm.push(String::new());
@@ -859,10 +948,10 @@ impl Application for Minelander {
 
                 Command::none()
             }
-            Message::Github => {
-                match open::that_detached("https://github.com/jafkc2/minelander") {
+            Message::OpenURL(url) => {
+                match open::that_detached(url) {
                     Ok(ok) => ok,
-                    Err(e) => println!("Failed to open Github repository in browser: {e}"),
+                    Err(e) => println!("Failed to open URL: {e}"),
                 }
 
                 Command::none()
@@ -886,6 +975,131 @@ impl Application for Minelander {
                 let index = self.downloaders.len() - 1;
                 self.downloaders[index].start_update(self.update_url.clone());
 
+                Command::none()
+            }
+            Message::GotAuthCode(code) => {
+                self.auth_status = String::from("Waiting for login...");
+                self.auth_code = code;
+                Command::none()
+            }
+            Message::ManageAuth((_id, progress)) => {
+                match progress {
+                    auth::WaitProgress::GotAuthToken(auth_token) => {
+                        self.auth_token = auth_token.clone();
+                        self.auth_status = String::from("Logging into Xbox Services...");
+
+                        return Command::perform(
+                            async move { auth::login_to_xbox(auth_token.access_token).await },
+                            Message::GotXboxToken,
+                        );
+                    }
+                    auth::WaitProgress::Waiting => (),
+                    auth::WaitProgress::Error(e) => println!("auth error: {e}"),
+                    auth::WaitProgress::Finished => {
+                        self.auth_code.code = String::new();
+                        self.auth_code.link = String::new();
+                    }
+                }
+
+                Command::none()
+            }
+            Message::GotXboxToken(xbox_data) => {
+                self.auth_xbox_data = xbox_data.clone();
+                self.auth_status = String::from("Logging into Minecraft...");
+
+                Command::perform(
+                    async move { auth::login_to_minecraft(xbox_data).await },
+                    Message::GotMinecraftAuthData,
+                )
+            }
+            Message::GotMinecraftAuthData(mc_account) => {
+                let refresh_token = self.auth_token.refresh_token.clone();
+                let account = Account {
+                    microsoft: true,
+                    username: mc_account.username,
+                    refresh_token,
+                };
+                self.accounts = save_account(account.clone());
+                self.current_account = account;
+
+                self.auth_status = String::from("Account added successfully!");
+
+                Command::none()
+            }
+            Message::CopyToClipboard(content) => clipboard::write(content),
+            Message::CurrentAccountChanged(account_name) => {
+                for i in &self.accounts {
+                    if i.username == account_name {
+                        self.current_account = i.clone();
+                    }
+                }
+
+                Command::none()
+            }
+            Message::RefreshLogin(mc_account) => {
+                if let Some(mc_account) = mc_account{
+                    self.current_account_mc_data = mc_account;
+                } else{
+                    self.current_account_mc_data.username = self.current_account.username.clone();
+                    self.game_state_text_2 = String::from("Game will run in offline mode. Check your internet connection.");                    
+                }
+
+                self.launch();
+
+                Command::none()
+            }
+            Message::LocalAccountNameChanged(username) => {
+                self.local_account_to_add_name = username;
+                Command::none()
+            }
+            Message::AddedLocalAccount => {
+                if self.local_account_to_add_name.chars().count() >= 3
+                    && self.local_account_to_add_name.chars().count() <= 16
+                {
+                    self.accounts = save_account(Account {
+                        microsoft: false,
+                        username: self.local_account_to_add_name.clone(),
+                        refresh_token: String::new(),
+                    });
+                    self.screen = Screen::Accounts;
+                    self.local_account_to_add_name = String::new();
+                }
+                Command::none()
+            }
+            Message::RemoveAccount(account_name) => {
+                let mut config_file = getjson(get_config_file_path());
+
+                let mut updated_account_list = vec![];
+
+                if let Some(arr) = config_file["accounts"].as_array() {
+                    for (idx, account) in arr.iter().enumerate() {
+                        if account["username"].as_str().unwrap() != &account_name {
+                            let microsoft = account["microsoft"].as_bool().unwrap();
+                            let username = account["username"].as_str().unwrap().to_owned();
+                            let refresh_token =
+                                account["refresh_token"].as_str().unwrap().to_owned();
+
+                            updated_account_list.push(Account {
+                                microsoft,
+                                username,
+                                refresh_token,
+                            })
+                        }
+                    }
+                }
+
+                config_file["accounts"] = serde_json::json!(updated_account_list);
+
+                let serialized = serde_json::to_string_pretty(&config_file).unwrap();
+
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .open(get_config_file_path())
+                    .unwrap();
+                file.write_all(serialized.as_bytes()).unwrap();
+
+                self.accounts = updated_account_list;
                 Command::none()
             }
         }
@@ -932,6 +1146,7 @@ impl Application for Minelander {
                     button(svg(svg::Handle::from_memory(
                         include_bytes!("icons/account.svg").as_slice()
                     )))
+                    .on_press(Message::ChangeScreen(Screen::Accounts))
                     .style(theme::Button::Transparent)
                     .width(Length::Fixed(42.))
                     .height(Length::Fixed(42.)),
@@ -983,6 +1198,13 @@ impl Application for Minelander {
 
         subscriptions.push(events);
 
+        if !self.auth_code.code.is_empty() {
+            let auth_sub = auth::start_wait_for_login(0, self.auth_code.device_code.clone())
+                .map(Message::ManageAuth);
+
+            subscriptions.push(auth_sub)
+        };
+
         Subscription::batch(subscriptions)
     }
 }
@@ -1013,10 +1235,23 @@ fn checksettingsfile() {
             map.insert("JVMs".to_owned(), serde_json::to_value(jvm).unwrap());
         }
 
-        if !map.contains_key("username") {
+        if !map.contains_key("accounts") {
+            let accounts: Vec<Account> = vec![];
+
             map.insert(
-                "username".to_owned(),
-                serde_json::to_value(String::from("player")).unwrap(),
+                "accounts".to_owned(),
+                serde_json::to_value(accounts).unwrap(),
+            );
+        }
+
+        if !map.contains_key("current_account") {
+            map.insert(
+                "current_account".to_owned(),
+                serde_json::json!(Account {
+                    microsoft: false,
+                    username: String::new(),
+                    refresh_token: String::new()
+                }),
             );
         }
 
@@ -1071,7 +1306,7 @@ fn checksettingsfile() {
     file.write_all(serializedjson.as_bytes()).unwrap();
 }
 
-fn updateusersettingsfile(username: String, version: String) -> std::io::Result<()> {
+fn updateusersettingsfile(current_account: Account, version: String) -> std::io::Result<()> {
     set_current_dir(env::current_exe().unwrap().parent().unwrap()).unwrap();
 
     let mut file = File::open(get_config_file_path())?;
@@ -1080,7 +1315,7 @@ fn updateusersettingsfile(username: String, version: String) -> std::io::Result<
 
     let mut data: Value = serde_json::from_str(&contents)?;
 
-    data["username"] = serde_json::Value::String(username);
+    data["current_account"] = serde_json::json!(current_account);
     data["current_version"] = serde_json::Value::String(version);
 
     let serialized = serde_json::to_string_pretty(&data)?;
@@ -1092,6 +1327,47 @@ fn updateusersettingsfile(username: String, version: String) -> std::io::Result<
     file.write_all(serialized.as_bytes())?;
 
     Ok(())
+}
+
+fn save_account(account: Account) -> Vec<Account> {
+    set_current_dir(env::current_exe().unwrap().parent().unwrap()).unwrap();
+
+    let mut file = File::open(get_config_file_path()).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let mut data: Value = serde_json::from_str(&contents).unwrap();
+
+    if let Value::Array(arr) = &mut data["accounts"] {
+        arr.push(serde_json::json!(account));
+        data["accounts"] = serde_json::json!(arr);
+    }
+
+    let mut updated_account_list = vec![];
+    if let Some(arr) = data["accounts"].as_array() {
+        for account in arr {
+            let microsoft = account["microsoft"].as_bool().unwrap();
+            let username = account["username"].as_str().unwrap().to_owned();
+            let refresh_token = account["refresh_token"].as_str().unwrap().to_owned();
+
+            updated_account_list.push(Account {
+                microsoft,
+                username,
+                refresh_token,
+            })
+        }
+    }
+
+    let serialized = serde_json::to_string_pretty(&data).unwrap();
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(get_config_file_path())
+        .unwrap();
+    file.write_all(serialized.as_bytes()).unwrap();
+
+    updated_account_list
 }
 
 fn updatesettingsfile(

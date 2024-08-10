@@ -1,8 +1,8 @@
 use iced::{
     alignment,
     widget::{
-        button, column, container, pick_list, row, scrollable, slider, text, text_input, toggler,
-        Column,
+        button, column, container, pick_list, row, scrollable, slider, svg, text, text_input,
+        toggler, Column,
     },
     Alignment, Length,
 };
@@ -46,12 +46,18 @@ pub fn get_screen_content(
                 _ => None,
             };
 
+            let mut account_name_list = vec![];
+
+            for i in &minelander.accounts {
+                account_name_list.push(i.username.clone())
+            }
+
             column![
                 //mainscreen
                 //title
                 column![
                     text("Minelander").size(50),
-                    text(format!("Hello {}!", minelander.username))
+                    text(format!("Hello {}!", minelander.current_account.username))
                         .style(theme::Text::Peach)
                         .size(18)
                 ]
@@ -60,11 +66,15 @@ pub fn get_screen_content(
                 row![
                     container(
                         column![
-                            text("Username:"),
-                            text_input("Username", &minelander.username)
-                                .on_input(Message::UsernameChanged)
-                                .size(25)
-                                .width(285),
+                            text("Account"),
+                            pick_list(
+                                account_name_list,
+                                Some(minelander.current_account.username.clone()),
+                                Message::CurrentAccountChanged
+                            )
+                            .placeholder("Select an Account")
+                            .width(285)
+                            .text_size(15),
                             text("Version:"),
                             pick_list(
                                 minelander.all_versions.clone(),
@@ -115,10 +125,13 @@ pub fn get_screen_content(
                         .push_maybe(close_button)
                         .spacing(15)
                         .align_items(Alignment::Center),
-                    text(minelander.game_state_text.to_string())
+                    column![text(minelander.game_state_text.to_string())
                         .style(theme::Text::Green)
                         .size(15)
-                        .height(40)
+                        .height(40), text(minelander.game_state_text_2.to_string())
+                        .style(theme::Text::Green)
+                        .size(15)
+                        .height(40)].spacing(5)
                 ]
                 .spacing(10),
             ]
@@ -367,9 +380,13 @@ pub fn get_screen_content(
 
         Screen::Logs => column![
             text("Game logs").size(25),
-            container(scrollable(text(minelander.logs.join("\n")).size(10)).width(700.0).height(345.))
-                .style(theme::Container::BlackContainer)
-                .padding(5)
+            container(
+                scrollable(text(minelander.logs.join("\n")).size(10))
+                    .width(700.0)
+                    .height(345.)
+            )
+            .style(theme::Container::BlackContainer)
+            .padding(5)
         ]
         .spacing(10),
         Screen::ModifyCommand => column![
@@ -430,7 +447,9 @@ pub fn get_screen_content(
                             text("Info").size(15),
                             text(credits),
                             row![button(text("Github repository").size(12))
-                                .on_press(Message::Github)
+                                .on_press(Message::OpenURL(
+                                    "https://github.com/jafkc2/minelander".to_string()
+                                ))
                                 .padding(5)]
                             .spacing(10)
                         ]
@@ -443,5 +462,91 @@ pub fn get_screen_content(
             ]
             .spacing(25)
         }
+        Screen::Accounts => {
+            let mut accounts_column = column![];
+            for i in &minelander.accounts {
+                let account_type = if i.microsoft { "Microsoft" } else { "Local" };
+
+                let text_content = format!("{} ({})", i.username, account_type);
+
+                let delete_button = button(svg(svg::Handle::from_memory(
+                    include_bytes!("icons/trash.svg").as_slice(),
+                )))
+                .width(30)
+                .height(30)
+                .style(theme::Button::Red)
+                .on_press(Message::RemoveAccount(i.username.clone()));
+
+                accounts_column =
+                    accounts_column.push(row![text(text_content), delete_button].spacing(10));
+            }
+
+            column![
+                text("Accounts").size(50),
+                row![
+                    container(
+                        column![text("Account list").size(30), accounts_column]
+                            .spacing(15)
+                            .width(250)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(15),
+                    container(
+                        column![
+                            button("Add Microsoft account")
+                                .on_press(Message::ChangeScreen(Screen::MicrosoftAccount)),
+                            button("Add local account")
+                                .on_press(Message::ChangeScreen(Screen::LocalAccount)),
+                        ]
+                        .spacing(15)
+                    )
+                    .style(theme::Container::BlackContainer)
+                    .padding(10)
+                ]
+                .spacing(15)
+            ]
+            .spacing(25)
+        }
+
+        Screen::MicrosoftAccount => {
+            column![
+                text("Microsoft Account").size(50),
+                container(column![
+                    text("Open the page below in the browser and enter the code to authenticate."),
+
+                    row![
+                        text(format!("Page: {}", minelander.auth_code.link)),
+                        button("Open in browser")
+                            .on_press(Message::OpenURL(minelander.auth_code.link.clone()))
+                    ]
+                    .spacing(10),
+                    row![
+                        text(format!("Code: {}", minelander.auth_code.code)),
+                        button("Copy to clipboard")
+                            .on_press(Message::CopyToClipboard(minelander.auth_code.code.clone()))
+                    ]
+                    .spacing(10),
+                    text(minelander.auth_status.clone())
+                ].spacing(15))
+                .style(theme::Container::BlackContainer)
+                .padding(15)
+            ].spacing(25)
+        }
+        Screen::LocalAccount => column![
+            text("Local Account").size(50),
+            container(
+                column![
+                    text("Account name"),
+                    text_input("Account Name", &minelander.local_account_to_add_name)
+                        .on_input(Message::LocalAccountNameChanged)
+                        .width(285),
+                    button("Add local account").on_press(Message::AddedLocalAccount),
+                    text("Account name requires 3 to 16 characters.").size(12)
+                ]
+                .spacing(15)
+            )
+            .style(theme::Container::BlackContainer)
+            .padding(15)
+        ].spacing(25),
     }
 }
