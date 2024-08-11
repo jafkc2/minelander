@@ -40,7 +40,7 @@ fn main() -> iced::Result {
     }
 
     let old_exec = env::current_exe().unwrap().with_extension("old");
-    if !Path::new(&env::current_exe().unwrap().with_extension(&old_exec)).exists() {
+    if Path::new(&old_exec).exists() {
         match fs::remove_file(old_exec) {
             Ok(ok) => ok,
             Err(e) => println!("Failed to delete old executable: {e}"),
