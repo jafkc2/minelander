@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --release
     - name: Archive binary
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: minelander-linux
         path: target/release/minelander
@@ -29,7 +29,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Enable static CRT linkage
       run: |
         mkdir .cargo
@@ -38,7 +38,7 @@ jobs:
     - name: Build
       run: cargo build --release
     - name: Archive binary
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: minelander-windows
         path: target/release/minelander.exe
