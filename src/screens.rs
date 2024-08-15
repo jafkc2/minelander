@@ -548,5 +548,35 @@ pub fn get_screen_content(
             .style(theme::Container::BlackContainer)
             .padding(15)
         ].spacing(25),
+        Screen::GettingStarted => column![
+            text("Getting started").size(50),
+            container(
+                column![
+                    text("Hi, this is Minelander, an open source Minecraft Launcher! To start, let's add an account."),
+                    row![button("Add Microsoft account")
+                    .on_press(Message::ChangeScreen(Screen::MicrosoftAccount)),
+                button("Add local account")
+                    .on_press(Message::ChangeScreen(Screen::LocalAccount)),].spacing(10),
+                ]
+                .spacing(15)
+            )
+            .style(theme::Container::BlackContainer)
+            .padding(15)
+        ].spacing(25),
+        Screen::GettingStarted2 => column![
+            text("Getting started").size(50),
+            container(
+                column![
+                    text(format!("Great, nice to meet you, {}. You don't have any Minecraft version installed, you can install a Minecraft version in the installation menu.", minelander.current_account.username)),
+                    row![button("Installation menu")
+                    .on_press(Message::ChangeScreen(Screen::Installation)),
+                button("Skip")
+                    .on_press(Message::ChangeScreen(Screen::Main)),].spacing(10),
+                ]
+                .spacing(15)
+            )
+            .style(theme::Container::BlackContainer)
+            .padding(15)
+        ].spacing(25),
     }
 }

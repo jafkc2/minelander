@@ -1021,35 +1021,6 @@ fn command_exists(command_name: &str) -> bool {
     false
 }
 
-pub async fn get_uuid_from_api(username: &str) -> String {
-    match reqwest::get(format!(
-        "https://api.mojang.com/users/profiles/minecraft/{}",
-        username
-    ))
-    .await
-    {
-        Ok(response) => match response.error_for_status() {
-            Ok(uuid) => match uuid.text().await {
-                Ok(uuid_string) => {
-                    let a: Value = serde_json::from_str(&uuid_string).unwrap();
-                    a["id"].as_str().unwrap().to_string()
-                }
-                Err(_) => {
-                    println!("Failed to get uuid from mojang. Generating one instead");
-                    generate_uuid(username)
-                }
-            },
-            Err(_) => {
-                println!("Failed to get uuid from mojang. Generating one instead.");
-                generate_uuid(username)
-            }
-        },
-        Err(_) => {
-            println!("Failed to get uuid from mojang. Generating one instead.");
-            generate_uuid(username)
-        }
-    }
-}
 
 fn generate_uuid(username: &str) -> String {
     let hash = md5::compute(username.as_bytes());

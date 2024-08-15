@@ -125,6 +125,8 @@ struct Minelander {
     auth_status: String,
 
     local_account_to_add_name: String,
+
+    is_first_launcher_use: bool
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -155,6 +157,8 @@ pub enum Screen {
     Accounts,
     MicrosoftAccount,
     LocalAccount,
+    GettingStarted,
+    GettingStarted2
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -286,7 +290,7 @@ impl Application for Minelander {
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         // Configuration file
         backward_compatibility_measures();
-        checksettingsfile();
+        let is_first_launcher_use = checksettingsfile();
 
         let mut file = File::open(get_config_file_path()).unwrap();
         let mut fcontent = String::new();
@@ -389,9 +393,15 @@ impl Application for Minelander {
                 .unwrap()
                 .to_owned(),
         };
+
+        let initial_screen = match is_first_launcher_use{
+            true => Screen::GettingStarted,
+            false => Screen::Main,
+        };
+
         (
             Minelander {
-                screen: Screen::Main,
+                screen: initial_screen,
                 current_account: current_account,
                 current_version: p["current_version"].as_str().unwrap().to_owned(),
                 game_ram: p["game_ram"].as_f64().unwrap(),
@@ -408,9 +418,9 @@ impl Application for Minelander {
                 game_instance_list: new_game_instance_list,
                 needs_to_update_download_list: true,
                 accounts,
+                is_first_launcher_use,
                 ..Default::default()
             },
-            //Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
             Command::batch(vec![
                 Command::perform(launcher::getinstalledversions(), Message::LoadVersionList),
                 Command::perform(
@@ -563,6 +573,7 @@ impl Application for Minelander {
 
                 match new_screen {
                     Screen::Main => {
+                        self.is_first_launcher_use = false;
                         Command::perform(launcher::getinstalledversions(), Message::LoadVersionList)
                     }
 
@@ -832,6 +843,13 @@ impl Application for Minelander {
                                 break;
                             }
                         }
+
+                        if self.is_first_launcher_use{
+                            self.is_first_launcher_use = false;
+                            self.screen = Screen::Main;
+                            
+                            return Command::perform(launcher::getinstalledversions(), Message::LoadVersionList)
+                        }
                     }
                     downloader::Progress::Errored(error) => {
                         self.download_text = format!("Failed to install: {error}");
@@ -925,7 +943,13 @@ impl Application for Minelander {
                 Command::none()
             }
             Message::LoadVersionList(ver_list) => {
-                self.all_versions = ver_list;
+                self.all_versions = ver_list.clone();
+
+
+                if ver_list.len() == 1{
+                    self.current_version = ver_list[0].clone()
+                }
+
                 Command::none()
             }
             Message::GameEnviromentVariablesChanged(s) => {
@@ -1024,6 +1048,18 @@ impl Application for Minelander {
 
                 self.auth_status = String::from("Account added successfully!");
 
+                if self.screen == Screen::MicrosoftAccount{
+                    if self.is_first_launcher_use{
+                        if self.all_versions.is_empty(){
+                            self.screen = Screen::GettingStarted2;
+                        } else{
+                            self.screen = Screen::Main;
+                            self.is_first_launcher_use = false;
+                        }
+                    } else{
+                        self.screen = Screen::Accounts;
+                    }                }
+
                 Command::none()
             }
             Message::CopyToClipboard(content) => clipboard::write(content),
@@ -1056,12 +1092,26 @@ impl Application for Minelander {
                 if self.local_account_to_add_name.chars().count() >= 3
                     && self.local_account_to_add_name.chars().count() <= 16
                 {
-                    self.accounts = save_account(Account {
+                    let account = Account {
                         microsoft: false,
                         username: self.local_account_to_add_name.clone(),
                         refresh_token: String::new(),
-                    });
-                    self.screen = Screen::Accounts;
+                    };
+
+                    self.accounts = save_account(account.clone());
+                    self.current_account = account;
+
+                    if self.is_first_launcher_use{
+                        if self.all_versions.is_empty(){
+                            self.screen = Screen::GettingStarted2;
+                        } else{
+                            self.screen = Screen::Main;
+                            self.is_first_launcher_use = false;
+                        }
+                    } else{
+                        self.screen = Screen::Accounts;
+                    }
+
                     self.local_account_to_add_name = String::new();
                 }
                 Command::none()
@@ -1072,7 +1122,7 @@ impl Application for Minelander {
                 let mut updated_account_list = vec![];
 
                 if let Some(arr) = config_file["accounts"].as_array() {
-                    for (idx, account) in arr.iter().enumerate() {
+                    for account in arr {
                         if account["username"].as_str().unwrap() != &account_name {
                             let microsoft = account["microsoft"].as_bool().unwrap();
                             let username = account["username"].as_str().unwrap().to_owned();
@@ -1173,14 +1223,25 @@ impl Application for Minelander {
         .width(50)
         .height(Length::Fixed(400.));
 
-        let content = screens::get_screen_content(self);
+        let screen = screens::get_screen_content(self);
 
-        container(row![sidebar, content].spacing(65))
+        match self.is_first_launcher_use{
+            true =>      container(screen.height(Length::Fixed(400.))
+        )
             .width(Length::Fill)
             .height(Length::Fill)
             .align_y(alignment::Vertical::Center)
             .padding(15)
-            .into()
+            .into(),
+            false =>      container(row![sidebar, screen].spacing(65))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_y(alignment::Vertical::Center)
+            .padding(15)
+            .into(),
+        }
+        
+   
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -1219,9 +1280,10 @@ fn action<'a>(
         .into()
 }
 
-// Configuration file settings{
-fn checksettingsfile() {
-    let mut conf_json = match Path::new(&get_config_file_path()).exists() {
+// Configuration file settings, returns true if config file didn't exist.
+fn checksettingsfile() -> bool {
+    let file_exists = Path::new(&get_config_file_path()).exists();
+    let mut conf_json = match file_exists {
         true => getjson(get_config_file_path()),
         false => serde_json::json!({}),
     };
@@ -1304,6 +1366,8 @@ fn checksettingsfile() {
     let serializedjson = serde_json::to_string_pretty(&conf_json).unwrap();
 
     file.write_all(serializedjson.as_bytes()).unwrap();
+
+    !file_exists
 }
 
 fn updateusersettingsfile(current_account: Account, version: String) -> std::io::Result<()> {
