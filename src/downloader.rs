@@ -282,6 +282,27 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
                 Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
             };
 
+            let path = Path::new(&current_file_to_download.path);
+
+            let mut path_vec  = vec![];
+            for i in path.components(){
+                path_vec.push(i.as_os_str().to_string_lossy())
+            }
+
+            if path_vec.len() > 1{
+                path_vec.pop();
+                let dir = path_vec.join("/");
+                
+                if !Path::new(&dir).exists(){
+                    match fs::create_dir_all(dir){
+                        Ok(ok) => ok,
+                        Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
+                    }
+                }
+
+
+            }
+
             let mut file = match File::create(&current_file_to_download.path) {
                 Ok(file) => file,
                 Err(e) => return ((id, Progress::Errored(e.to_string())), State::Idle),
