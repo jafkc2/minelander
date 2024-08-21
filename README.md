@@ -16,7 +16,8 @@ Note: For now the launcher only works in offline mode.
 * Works in offline mode.
 * No need to install Java, the launcher provides both Java 8 and Java 17.
 
-![image](https://github.com/jafkc2/minelander/assets/150557443/80cc2f42-7599-453b-aa1b-436cb1601937)
+![image](https://github.com/user-attachments/assets/1631065a-b5da-41ea-8014-b68b91ad8493)
+
 
 
 
