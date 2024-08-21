@@ -4,11 +4,9 @@ continuation of https://github.com/JafKC/siglauncher, as I lost my old account
 This is Minelander, a Minecraft launcher made with Rust and the Iced GUI library. 
 The launcher is compatible with Vanilla, Fabric, and Forge, and is designed to run on both Windows and Linux.
 
-Note: For now the launcher only works in offline mode.
-
-
 ### Features
 * Simple and intuitive GUI.
+* Microsoft login.
 * Version installer.
 * Compatibility: works with any vanilla release, Fabric and Forge.
 * Instance system: useful for modpacks and for those who play in multiple versions.
