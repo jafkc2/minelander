@@ -623,15 +623,14 @@ async fn download<I: 'static + Hash + Copy + Send + Sync>(
 
         State::PreparingUpdate(url) => {
             let exec_path = env::current_exe().unwrap();
-            fs::rename(&exec_path, exec_path.with_extension("old")).unwrap();
-            let exec_file = File::create(&exec_path).unwrap();
+            let exec_file = File::create(&exec_path.with_extension("new")).unwrap();
 
             #[cfg(target_os = "linux")]
             {
                 use std::os::unix::fs::PermissionsExt;
-                let mut permission = fs::metadata(&exec_path).unwrap().permissions();
+                let mut permission = fs::metadata(&exec_path.with_extension("new")).unwrap().permissions();
                 permission.set_mode(0o755);
-                fs::set_permissions(&exec_path, permission).unwrap();
+                fs::set_permissions(&exec_path.with_extension("new"), permission).unwrap();
             }
 
             let download = reqwest::get(url).await;

@@ -918,7 +918,14 @@ impl Application for Minelander {
                                 break;
                             }
                         }
+                        
+                        let exec_path = env::current_exe().unwrap();
 
+                        // renames current executable to minelander.old and renames updated executable to minelander
+                        fs::rename(&exec_path, exec_path.with_extension("old")).unwrap();
+                        fs::rename(exec_path.with_extension("new"), exec_path).unwrap();
+
+                        
                         let mut new_exe_path = env::current_exe().unwrap();
                         new_exe_path.pop();
                         new_exe_path = new_exe_path.join("minelander");
