@@ -1091,8 +1091,15 @@ impl Application for Minelander {
 
                 Command::none()
             }
-            Message::LocalAccountNameChanged(username) => {
-                self.local_account_to_add_name = username;
+            Message::LocalAccountNameChanged(mut username) => {
+                if username.chars().count() <= 16{
+                    for (i, char) in username.clone().chars().enumerate(){
+                        if !char.is_alphanumeric() && char != '_' {
+                            username.remove(i);
+                        }
+                    }
+                    self.local_account_to_add_name = username.replace(" ", "");
+                }
                 Command::none()
             }
             Message::AddedLocalAccount => {
