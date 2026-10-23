@@ -44,13 +44,13 @@ impl Minelander {
 
         let view = match &self.screen{
             Screen::Home(home) => home.view().map(Message::HomeScreen),
-            Screen::Settings => todo!(),
+            Screen::Settings(settings) => settings.view().map(Message::SettingsScreen),
             Screen::VersionManager => todo!(),
             Screen::About => todo!(),
         };
 
 
-        row![sidebar, view].into()
+        row![sidebar, view].spacing(20.).into()
     }
 
     fn theme(&self) -> Theme {
