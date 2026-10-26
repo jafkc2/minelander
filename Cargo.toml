@@ -22,6 +22,7 @@ md5 = "0.8.1"
 shared_child = "1.0.0"
 tar = "0.4.46"
 flate2 = "1.1.10"
+anyhow = "1.0.104"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"

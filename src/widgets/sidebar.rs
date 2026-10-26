@@ -1,7 +1,10 @@
 use std::io::Read;
 
 use iced::{
-    Background, Border, Color, Element, Length, Renderer, Shadow, Task, Theme, border::Radius, color, widget::{Button, button, column, container, image, row, svg, text},
+    border::Radius,
+    color,
+    widget::{button, column, container, image, row, svg, text, Button},
+    Background, Border, Color, Element, Length, Renderer, Shadow, Task, Theme,
 };
 
 #[derive(Default)]
@@ -17,37 +20,58 @@ pub enum Message {
     AboutClicked,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActiveScreen {
+    Home,
+    Settings,
+    VersionManager,
+    About,
+    AccountManager,
+    ModManager,
+}
+
 impl Sidebar {
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(&self, active_screen: ActiveScreen) -> Element<'_, Message> {
         //let bytes: &'static [u8] = include_bytes!("../../assets/icons/minelander.png");
         //let i = iced::widget::image(image::Handle::from_bytes(bytes)).height(40).width(40);
         container(
             column![
-                text("Minelander").height(Length::from(25)).size(25),
                 sidebar_button(
                     "Home",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/home.svg"))
-                ).on_press(Message::HomeClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/home.svg")),
+                    active_screen == ActiveScreen::Home,
+                )
+                .on_press(Message::HomeClicked),
                 sidebar_button(
                     "Settings",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/settings.svg"))
-                ).on_press(Message::SettingsClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/settings.svg")),
+                    active_screen == ActiveScreen::Settings,
+                )
+                .on_press(Message::SettingsClicked),
                 sidebar_button(
                     "Versions",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/download.svg"))
-                ).on_press(Message::VersionClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/download.svg")),
+                    false,
+                )
+                .on_press(Message::VersionClicked),
                 sidebar_button(
                     "Mods",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/download.svg"))
-                ).on_press(Message::ModsClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/folder.svg")),
+                    false,
+                )
+                .on_press(Message::ModsClicked),
                 sidebar_button(
                     "Accounts",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/account.svg"))
-                ).on_press(Message::AccountsClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/account.svg")),
+                    false,
+                )
+                .on_press(Message::AccountsClicked),
                 sidebar_button(
                     "About",
-                    svg::Handle::from_memory(include_bytes!("../../assets/icons/info.svg"))
-                ).on_press(Message::AboutClicked),
+                    svg::Handle::from_memory(include_bytes!("../../assets/icons/info.svg")),
+                    false,
+                )
+                .on_press(Message::AboutClicked),
                 text(format!("v{}", env!("CARGO_PKG_VERSION"),))
             ]
             .padding(15.)
@@ -84,6 +108,7 @@ impl Sidebar {
 pub fn sidebar_button<'a>(
     text_content: &'a str,
     image: svg::Handle,
+    active: bool,
 ) -> Button<'a, Message, Theme, Renderer> {
     let image =
         svg(image)
@@ -97,24 +122,27 @@ pub fn sidebar_button<'a>(
 
     iced::widget::button(r)
         .style(
-            move |theme: &Theme, status: button::Status|     
-            iced::widget::button::Style {
-                background: Some(Background::Color(
-                    theme.extended_palette().secondary.base.color,
-                )),
+            move |theme: &Theme, status: button::Status| iced::widget::button::Style {
+                background: Some(Background::Color(if active {
+                    theme.extended_palette().primary.base.color
+                } else {
+                    theme.extended_palette().secondary.base.color
+                })),
                 text_color: theme.palette().text,
                 border: Border {
-                    color: match status{
+                    color: match status {
                         button::Status::Hovered | button::Status::Pressed => Color::WHITE,
-                        _ => theme.extended_palette().secondary.strong.color
+                        _ if active => theme.extended_palette().primary.strong.color,
+                        _ => theme.extended_palette().secondary.strong.color,
                     },
                     width: 2.,
                     radius: Radius::new(5),
                 },
                 shadow: Shadow {
-                    color: match status{
+                    color: match status {
                         button::Status::Hovered | button::Status::Pressed => Color::WHITE,
-                        _ => theme.extended_palette().secondary.strong.color
+                        _ if active => theme.extended_palette().primary.strong.color,
+                        _ => theme.extended_palette().secondary.strong.color,
                     },
                     offset: [1., 2.].into(),
                     blur_radius: 0.,
