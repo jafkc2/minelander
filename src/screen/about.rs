@@ -12,7 +12,9 @@ use crate::widgets::{
 pub struct About;
 
 #[derive(Debug, Clone)]
-pub enum Message {}
+pub enum Message {
+    GithubClicked,
+}
 
 impl About {
     pub fn view(&self) -> Element<'_, Message> {
@@ -47,7 +49,8 @@ impl About {
                         "../../assets/icons/github.svg"
                     ))),
                     ButtonType::Secondary,
-                ),]
+                )
+                .on_press(Message::GithubClicked),]
                 .spacing(14)
                 .align_y(iced::Alignment::Center),
             ]
@@ -59,9 +62,9 @@ impl About {
         column![
             text("About").size(50).height(50),
             text("Information about Minelander.").size(20).height(50),
-            credits_section,
-            version_section,
-            github_section,
+            credits_section.max_width(700),
+            version_section.max_width(700),
+            github_section.max_width(700),
         ]
         .width(Length::FillPortion(4))
         .spacing(14)
@@ -69,6 +72,13 @@ impl About {
         .into()
     }
     pub fn update(&mut self, message: Message) -> iced::Task<Message> {
+        match message {
+            Message::GithubClicked => {
+                open::that("https://github.com/jafkc2/minelander").unwrap_or_else(|e| {
+                    eprintln!("Failed to open GitHub page: {}", e);
+                });
+            }
+        }
         Task::none()
     }
 }

@@ -2,7 +2,6 @@ use iced::{
     border::Radius, widget::row, Background, Border, Color, Element, Renderer, Shadow, Theme,
 };
 
-
 pub enum ButtonType {
     Primary,
     Secondary,
@@ -18,8 +17,6 @@ where
 {
     let mut r = row![].spacing(10);
 
-
-
     if let Some(img) = image_handle {
         let image = iced::widget::svg(img)
             .height(20)
@@ -33,13 +30,11 @@ where
 
     iced::widget::button(r).padding([10, 18]).style(
         move |theme: &Theme, status: iced::widget::button::Status| iced::widget::button::Style {
-            background: Some(Background::Color(
-                match button_type {
-                    ButtonType::Primary => theme.extended_palette().primary.base.color,
-                    ButtonType::Secondary => theme.extended_palette().secondary.strong.color,
-                }
-            )),
-            text_color: theme.palette().text,
+            background: Some(Background::Color(match button_type {
+                ButtonType::Primary => theme.extended_palette().primary.base.color,
+                ButtonType::Secondary => theme.extended_palette().secondary.strong.color,
+            })),
+            text_color: theme.extended_palette().background.strongest.text,
             border: Border {
                 color: match status {
                     iced::widget::button::Status::Hovered

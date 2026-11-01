@@ -51,25 +51,25 @@ impl Sidebar {
                 sidebar_button(
                     "Versions",
                     svg::Handle::from_memory(include_bytes!("../../assets/icons/download.svg")),
-                    false,
+                    active_screen == ActiveScreen::VersionManager,
                 )
                 .on_press(Message::VersionClicked),
                 sidebar_button(
                     "Mods",
                     svg::Handle::from_memory(include_bytes!("../../assets/icons/folder.svg")),
-                    false,
+                    active_screen == ActiveScreen::ModManager,
                 )
                 .on_press(Message::ModsClicked),
                 sidebar_button(
                     "Accounts",
                     svg::Handle::from_memory(include_bytes!("../../assets/icons/account.svg")),
-                    false,
+                    active_screen == ActiveScreen::AccountManager,
                 )
                 .on_press(Message::AccountsClicked),
                 sidebar_button(
                     "About",
                     svg::Handle::from_memory(include_bytes!("../../assets/icons/info.svg")),
-                    false,
+                    active_screen == ActiveScreen::About,
                 )
                 .on_press(Message::AboutClicked),
                 text(format!("v{}", env!("CARGO_PKG_VERSION"),))
@@ -124,11 +124,11 @@ pub fn sidebar_button<'a>(
         .style(
             move |theme: &Theme, status: button::Status| iced::widget::button::Style {
                 background: Some(Background::Color(if active {
-                    theme.extended_palette().primary.base.color
+                    theme.extended_palette().primary.weak.color
                 } else {
                     theme.extended_palette().secondary.base.color
                 })),
-                text_color: theme.palette().text,
+                text_color: theme.extended_palette().background.strongest.text,
                 border: Border {
                     color: match status {
                         button::Status::Hovered | button::Status::Pressed => Color::WHITE,
