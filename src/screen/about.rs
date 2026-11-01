@@ -14,10 +14,18 @@ pub struct About;
 #[derive(Debug, Clone)]
 pub enum Message {
     GithubClicked,
+    CheckForUpdates,
+    InstallUpdate,
 }
 
 impl About {
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(
+        &self,
+        automatic_updates: bool,
+        checking_for_updates: bool,
+        update_available: bool,
+        update_status: Option<String>,
+    ) -> Element<'_, Message> {
         let credits_section = container(
             column![
                 text("Credits").size(22),
@@ -28,16 +36,36 @@ impl About {
             .width(Length::Fill),
         );
 
-        let version_section = container(
-            column![
-                text("Version").size(22),
-                text(format!("Minelander v{}", env!("CARGO_PKG_VERSION"))),
-                text("Simple, fast and intuitive Minecraft launcher."),
-            ]
-            .spacing(10)
-            .padding(15)
-            .width(Length::Fill),
-        );
+        let mut version_content = column![
+            text("Version").size(22),
+            text(format!("Minelander v{}", env!("CARGO_PKG_VERSION"))),
+            text("Simple, fast and intuitive Minecraft launcher."),
+        ]
+        .spacing(10);
+        if !automatic_updates {
+            version_content = version_content.push(
+                button(
+                    text(if checking_for_updates {
+                        "Checking for updates..."
+                    } else {
+                        "Check for updates"
+                    }),
+                    None,
+                    ButtonType::Secondary,
+                )
+                .on_press_maybe((!checking_for_updates).then_some(Message::CheckForUpdates)),
+            );
+        }
+        if update_available {
+            version_content = version_content.push(
+                button(text("Install update"), None, ButtonType::Primary)
+                    .on_press(Message::InstallUpdate),
+            );
+        }
+        if let Some(status) = update_status {
+            version_content = version_content.push(text(status));
+        }
+        let version_section = container(version_content.padding(15).width(Length::Fill));
 
         let github_section = container(
             column![
@@ -78,6 +106,7 @@ impl About {
                     eprintln!("Failed to open GitHub page: {}", e);
                 });
             }
+            Message::CheckForUpdates | Message::InstallUpdate => {}
         }
         Task::none()
     }

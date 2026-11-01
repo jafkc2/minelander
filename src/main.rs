@@ -18,6 +18,9 @@ use iced::widget::row;
 use iced::{Element, Subscription, Task, Theme};
 use reqwest::Client;
 use shared_child::SharedChild;
+use std::path::Path;
+use std::{env, fs};
+use std::process::Command;
 use std::sync::Arc;
 
 use crate::config::Config;
@@ -27,13 +30,22 @@ use crate::screen::Screen;
 use crate::widgets::sidebar::{ActiveScreen, Sidebar};
 
 fn main() {
+    // Removes old executable after an update
+    let old_exec = env::current_exe().unwrap().with_extension("old");
+    if Path::new(&old_exec).exists() {
+        match fs::remove_file(old_exec) {
+            Ok(ok) => ok,
+            Err(e) => println!("Failed to delete old executable: {e}"),
+        }
+    }
+
     let icon = include_bytes!("../assets/icons/minelander.png");
 
     iced::application(Minelander::new, Minelander::update, Minelander::view)
         .title(Minelander::title)
         .theme(Minelander::theme)
         .subscription(Minelander::subscription)
-        .window(iced::window::Settings{
+        .window(iced::window::Settings {
             icon: Some(iced::window::icon::from_file_data(icon, None).unwrap()),
             ..Default::default()
         })
@@ -60,6 +72,9 @@ struct Minelander {
     active_process: Option<Arc<SharedChild>>,
     minecraft_logs: Vec<String>,
     logs_visible: bool,
+    available_update: Option<(String, String)>,
+    checking_for_updates: bool,
+    update_status: Option<String>,
 }
 
 impl Minelander {
@@ -69,10 +84,22 @@ impl Minelander {
             Config::new()
         });
         let home = screen::home::Home::from_config(&config);
-        let tasks = vec![Task::perform(
+        let check_for_updates = config.check_for_updates;
+        let mut tasks = vec![Task::perform(
             minecraft::get_installed_versions(),
             |versions| Message::GotInstalledVersions(versions),
         )];
+        if check_for_updates {
+            tasks.push(Task::perform(updater::check_update(), |result| {
+                Message::UpdateCheckCompleted(match result {
+                    Ok(update) => Ok(Some(update)),
+                    Err(error) if error.to_string() == "Last version is already installed." => {
+                        Ok(None)
+                    }
+                    Err(error) => Err(format!("{error:#}")),
+                })
+            }));
+        }
 
         (
             Self {
@@ -93,6 +120,9 @@ impl Minelander {
                 active_process: None,
                 minecraft_logs: Vec::new(),
                 logs_visible: false,
+                available_update: None,
+                checking_for_updates: check_for_updates,
+                update_status: None,
             },
             Task::batch(tasks),
         )
@@ -131,6 +161,20 @@ impl Minelander {
                     }
                     widgets::sidebar::Message::AboutClicked => {
                         self.screen = Screen::About(screen::about::About::default());
+                    }
+                    widgets::sidebar::Message::UpdateClicked => {
+                        if let Some((version, url)) = &self.available_update {
+                            self.update_status =
+                                Some(format!("Installing update v{}...", version));
+                            return Task::perform(
+                                updater::install_update(url.clone()),
+                                |result| {
+                                    Message::UpdateInstalled(
+                                        result.map_err(|error| format!("{error:#}")),
+                                    )
+                                },
+                            );
+                        }
                     }
                     widgets::sidebar::Message::ModsClicked => {
                         self.screen =
@@ -635,7 +679,41 @@ impl Minelander {
             }
             Message::AboutScreen(message) => {
                 if let Screen::About(about) = &mut self.screen {
-                    about.update(message).map(Message::AboutScreen)
+                    match message {
+                        screen::about::Message::CheckForUpdates => {
+                            self.checking_for_updates = true;
+                            self.update_status = None;
+                            Task::perform(updater::check_update(), |result| {
+                                Message::UpdateCheckCompleted(match result {
+                                    Ok(update) => Ok(Some(update)),
+                                    Err(error)
+                                        if error.to_string()
+                                            == "Last version is already installed." =>
+                                    {
+                                        Ok(None)
+                                    }
+                                    Err(error) => Err(format!("{error:#}")),
+                                })
+                            })
+                        }
+                        screen::about::Message::InstallUpdate => {
+                            if let Some((_version, url)) = &self.available_update {
+                                self.update_status =
+                                    Some("Installing update...".to_string());
+                                Task::perform(
+                                    updater::install_update(url.clone()),
+                                    |result| {
+                                        Message::UpdateInstalled(
+                                            result.map_err(|error| format!("{error:#}")),
+                                        )
+                                    },
+                                )
+                            } else {
+                                Task::none()
+                            }
+                        }
+                        other => about.update(other).map(Message::AboutScreen),
+                    }
                 } else {
                     Task::none()
                 }
@@ -720,6 +798,38 @@ impl Minelander {
                 self.versions = versions;
                 Task::none()
             }
+            Message::UpdateCheckCompleted(result) => {
+                self.checking_for_updates = false;
+                match result {
+                    Ok(Some((version, url))) => {
+                        self.update_status =
+                            Some(format!("Update v{} is available.", version));
+                        self.available_update = Some((version, url));
+                    }
+                    Ok(None) => {
+                        self.available_update = None;
+                        self.update_status = Some("You are up to date.".to_string());
+                    }
+                    Err(error) => {
+                        self.available_update = None;
+                        self.update_status = Some(format!("Update check failed: {error}"));
+                    }
+                }
+                Task::none()
+            }
+            Message::UpdateInstalled(result) => match result {
+                Ok(()) => match updater::replace_and_restart() {
+                    Ok(()) => std::process::exit(0),
+                    Err(error) => {
+                        self.update_status = Some(format!("Update failed: {error:#}"));
+                        Task::none()
+                    }
+                },
+                Err(error) => {
+                    self.update_status = Some(format!("Update failed: {error}"));
+                    Task::none()
+                }
+            },
         }
     }
 
@@ -738,7 +848,13 @@ impl Minelander {
             Screen::AccountManager(_) => ActiveScreen::AccountManager,
             Screen::ModManager(_) => ActiveScreen::ModManager,
         };
-        let sidebar = self.sidebar.view(active_screen).map(Message::Sidebar);
+        let sidebar = self
+            .sidebar
+            .view(
+                active_screen,
+                self.config.check_for_updates && self.available_update.is_some(),
+            )
+            .map(Message::Sidebar);
 
         let view = match &self.screen {
             Screen::Home(home) => home
@@ -759,7 +875,14 @@ impl Minelander {
                     self.version_download_status.as_deref(),
                 )
                 .map(Message::VersionManagerScreen),
-            Screen::About(about) => about.view().map(Message::AboutScreen),
+            Screen::About(about) => about
+                .view(
+                    self.config.check_for_updates,
+                    self.checking_for_updates,
+                    self.available_update.is_some(),
+                    self.update_status.clone(),
+                )
+                .map(Message::AboutScreen),
             Screen::AccountManager(account_manager) => account_manager
                 .view(&self.config.accounts, self.microsoft_login_state.as_ref())
                 .map(Message::AccountManagerScreen),

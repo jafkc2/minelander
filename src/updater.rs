@@ -1,10 +1,10 @@
-use std::{env, fs::File, io::Write};
+use std::{env, fs::{self, File}, io::Write, process::Command};
 
 use anyhow::Result;
 use reqwest::header::{HeaderValue, USER_AGENT};
 use serde_json::Value;
 
-async fn check_update() -> Result<(String, String)> {
+pub async fn check_update() -> Result<(String, String)> {
     let last_release_request = reqwest::Client::new()
         .get("https://api.github.com/repos/jafkc2/minelander/releases/latest")
         .header(USER_AGENT, HeaderValue::from_static("minelander"))
@@ -74,4 +74,18 @@ pub async fn install_update(url: String) -> Result<()> {
             Err(anyhow::anyhow!("Error downloading update: {e}"))
         }
     }
+}
+
+pub fn replace_and_restart() -> anyhow::Result<()> {
+    let executable = env::current_exe()?;
+    let new_executable = executable.with_extension("new");
+    let old_executable = executable.with_extension("old");
+
+    fs::rename(&executable, &old_executable)?;
+    if let Err(error) = fs::rename(&new_executable, &executable) {
+        let _ = fs::rename(&old_executable, &executable);
+        return Err(error.into());
+    }
+    Command::new(&executable).spawn()?;
+    Ok(())
 }

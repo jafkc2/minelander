@@ -1,9 +1,6 @@
-use std::io::Read;
-
 use iced::{
     border::Radius,
-    color,
-    widget::{button, column, container, image, row, svg, text, Button},
+    widget::{button, column, container, row, svg, text, Button},
     Background, Border, Color, Element, Length, Renderer, Shadow, Task, Theme,
 };
 
@@ -18,6 +15,7 @@ pub enum Message {
     ModsClicked,
     AccountsClicked,
     AboutClicked,
+    UpdateClicked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +29,11 @@ pub enum ActiveScreen {
 }
 
 impl Sidebar {
-    pub fn view(&self, active_screen: ActiveScreen) -> Element<'_, Message> {
+    pub fn view(
+        &self,
+        active_screen: ActiveScreen,
+        update_available: bool,
+    ) -> Element<'_, Message> {
         //let bytes: &'static [u8] = include_bytes!("../../assets/icons/minelander.png");
         //let i = iced::widget::image(image::Handle::from_bytes(bytes)).height(40).width(40);
         container(
@@ -72,6 +74,14 @@ impl Sidebar {
                     active_screen == ActiveScreen::About,
                 )
                 .on_press(Message::AboutClicked),
+                update_available.then(|| {
+                    sidebar_button(
+                        "Update",
+                        svg::Handle::from_memory(include_bytes!("../../assets/icons/download.svg")),
+                        false,
+                    )
+                    .on_press(Message::UpdateClicked)
+                }),
                 text(format!("v{}", env!("CARGO_PKG_VERSION"),))
             ]
             .padding(15.)

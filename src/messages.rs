@@ -35,4 +35,6 @@ pub enum Message {
     LaunchStageCheckVersion(Result<launcher::checker::CheckResult, anyhow::Error>),
     LauncherProgress(crate::launcher::Progress),
     StopMinecraft,
+    UpdateCheckCompleted(Result<Option<(String, String)>, String>),
+    UpdateInstalled(Result<(), String>),
 }
