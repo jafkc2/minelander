@@ -27,10 +27,16 @@ use crate::screen::Screen;
 use crate::widgets::sidebar::{ActiveScreen, Sidebar};
 
 fn main() {
+    let icon = include_bytes!("../assets/icons/minelander.png");
+
     iced::application(Minelander::new, Minelander::update, Minelander::view)
         .title(Minelander::title)
         .theme(Minelander::theme)
         .subscription(Minelander::subscription)
+        .window(iced::window::Settings{
+            icon: Some(iced::window::icon::from_file_data(icon, None).unwrap()),
+            ..Default::default()
+        })
         .run()
         .unwrap();
 }
