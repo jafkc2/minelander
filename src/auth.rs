@@ -1,290 +1,287 @@
-use iced::subscription;
-use reqwest::{Client, StatusCode};
-use serde_json::{json, Value};
-use std::hash::Hash;
+use anyhow::{anyhow, Result};
+use minecraft_msa_auth::{MinecraftAuthenticationResponse, MinecraftAuthorizationFlow};
+use oauth2::{
+    basic::BasicClient, reqwest::Client as OAuthHttpClient, AuthUrl, ClientId,
+    DeviceAuthorizationUrl, EndpointNotSet, EndpointSet, RefreshToken, Scope,
+    StandardDeviceAuthorizationResponse, TokenResponse, TokenUrl,
+};
+use serde::Deserialize;
+use std::{
+    collections::HashMap,
+    fs,
+    time::{Duration, Instant},
+};
+
+use crate::minecraft::get_minelander_dir;
 
 const AZURE_CLIENT_ID: &str = "7f8e9d75-ca8f-4603-b2ab-ae7fc0f871d9";
+const DEVICE_CODE_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
+const MSA_AUTHORIZE_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+const MSA_TOKEN_URL: &str = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+const MSA_SCOPE: &str = "XboxLive.signin offline_access";
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct MinecraftAccount {
-    pub username: String,
-    pub token: String,
-    pub uuid: String,
+fn accounts_file_path() -> String {
+    format!("{}/accounts.json", get_minelander_dir())
 }
 
-
-#[derive(Clone, Debug, Default)]
-pub struct AuthCode {
-    pub code: String,
-    pub link: String,
-    pub device_code: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AuthToken {
-    pub access_token: String,
-    pub refresh_token: String,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct XboxLiveData {
-    user_hash: String,
-    xsts_token: String,
-}
-// Login process
-
-pub async fn request_code() -> AuthCode {
-    let client = Client::new();
-    let response = match client
-        .get("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
-        .query(&[
-            ("client_id", AZURE_CLIENT_ID),
-            ("scope", &"XboxLive.signin offline_access".to_string()),
-        ])
-        .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(e) => panic!("{e}"),
-    };
-
-    let response_json: Value = serde_json::from_str(&response).unwrap();
-
-    let code = response_json["user_code"].as_str().unwrap().to_owned();
-    let link = response_json["verification_uri"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
-    let device_code = response_json["device_code"].as_str().unwrap().to_owned();
-
-    AuthCode {
-        code,
-        link,
-        device_code,
+fn load_accounts_file() -> HashMap<String, String> {
+    let path = accounts_file_path();
+    match fs::read_to_string(&path) {
+        Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
+        Err(_) => HashMap::new(),
     }
 }
 
+fn save_accounts_file(accounts: &HashMap<String, String>) -> Result<()> {
+    let dir = get_minelander_dir();
+    fs::create_dir_all(&dir)?;
+    let path = accounts_file_path();
+    let contents = serde_json::to_string_pretty(accounts)?;
+    fs::write(&path, contents)?;
+    Ok(())
+}
+
+pub fn save_refresh_token(username: &str, refresh_token: &str) -> Result<()> {
+    let mut accounts = load_accounts_file();
+    accounts.insert(username.to_string(), refresh_token.to_string());
+    save_accounts_file(&accounts)
+}
+
+pub fn get_refresh_token(username: &str) -> Result<String> {
+    let accounts = load_accounts_file();
+    accounts
+        .get(username)
+        .cloned()
+        .ok_or_else(|| anyhow!("no refresh token stored for account '{username}'"))
+}
+
+pub fn delete_refresh_token(username: &str) -> Result<()> {
+    let mut accounts = load_accounts_file();
+    accounts.remove(username);
+    save_accounts_file(&accounts)
+}
+
 #[derive(Debug, Clone)]
-pub enum WaitProgress {
-    GotAuthToken(AuthToken),
-    Waiting,
+pub struct DeviceCode {
+    pub verification_uri: String,
+    pub user_code: String,
+    pub expires_in: std::time::Duration,
+    pub interval: std::time::Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeviceFlow {
+    client: reqwest::Client,
+    device_code: String,
+    interval: Duration,
+    expires_at: Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenticatedAccount {
+    pub minecraft_username: String,
+    pub uuid: String,
+    pub minecraft_access_token: String,
+    pub minecraft_token_expires_in: u32,
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum AuthState {
+    Code(DeviceCode),
+    Waiting(Duration),
+    Authenticated(AuthenticatedAccount),
     Error(String),
     Finished,
 }
 
-pub enum WaitState {
-    Waiting(Client, String),
-    Finished,
+type MicrosoftClient =
+    BasicClient<EndpointSet, EndpointSet, EndpointNotSet, EndpointNotSet, EndpointSet>;
+
+fn microsoft_client() -> Result<MicrosoftClient> {
+    Ok(BasicClient::new(ClientId::new(AZURE_CLIENT_ID.to_owned()))
+        .set_auth_uri(AuthUrl::new(MSA_AUTHORIZE_URL.to_owned())?)
+        .set_token_uri(TokenUrl::new(MSA_TOKEN_URL.to_owned())?)
+        .set_device_authorization_url(DeviceAuthorizationUrl::new(DEVICE_CODE_URL.to_owned())?))
 }
 
-pub fn start_wait_for_login<I: 'static + Hash + Copy + Send + Sync>(
-    id: I,
-    device_code: String,
-) -> iced::Subscription<(I, WaitProgress)> {
-    subscription::unfold(
-        id,
-        WaitState::Waiting(Client::new(), device_code),
-        move |state| wait_for_login(id, state),
-    )
+#[derive(Debug, Deserialize)]
+struct DeviceTokenResponse {
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
 }
 
-pub async fn wait_for_login<Id: Copy>(id: Id, state: WaitState) -> ((Id, WaitProgress), WaitState) {
-    match state {
-        WaitState::Waiting(client, device_code) => {
-            let response = match client
-                .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
-                .form(&[
-                    ("client_id", AZURE_CLIENT_ID),
-                    ("scope", &"XboxLive.signin offline_access".to_string()),
-                    (
-                        "grant_type",
-                        &"urn:ietf:params:oauth:grant-type:device_code".to_string(),
-                    ),
-                    ("device_code", &device_code),
-                ])
-                .send()
-                .await
-            {
-                Ok(ok) => ok,
-                Err(e) => panic!("{e}"),
-            };
+fn form_component(value: &str) -> String {
+    value
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                vec![byte as char]
+            }
+            byte => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect()
+}
 
-            match response.status() {
-                StatusCode::OK => {
-                    let response_json: Value =
-                        serde_json::from_str(&response.text().await.unwrap()).unwrap();
+pub async fn begin_device_flow() -> Result<(DeviceCode, DeviceFlow)> {
+    let client = microsoft_client()?;
+    let http_client = OAuthHttpClient::new();
+    let details: StandardDeviceAuthorizationResponse = client
+        .exchange_device_code()
+        .add_scope(Scope::new(MSA_SCOPE.to_owned()))
+        .request_async(&http_client)
+        .await?;
 
-                    let access_token = response_json["access_token"].as_str().unwrap().to_string();
-                    let refresh_token =
-                        response_json["refresh_token"].as_str().unwrap().to_string();
+    let code = DeviceCode {
+        verification_uri: details.verification_uri().to_string(),
+        user_code: details.user_code().secret().to_owned(),
+        expires_in: details.expires_in(),
+        interval: details.interval(),
+    };
 
-                    let token = AuthToken {
-                        access_token,
-                        refresh_token,
-                    };
+    let flow = DeviceFlow {
+        client: reqwest::Client::new(),
+        device_code: details.device_code().secret().to_owned(),
+        interval: details.interval(),
+        expires_at: Instant::now() + details.expires_in(),
+    };
 
-                    ((id, WaitProgress::GotAuthToken(token)), WaitState::Finished)
-                }
+    Ok((code, flow))
+}
 
-                _ => (
-                    (id, WaitProgress::Waiting),
-                    WaitState::Waiting(client, device_code),
-                ),
+pub async fn poll_device_flow(flow: &mut DeviceFlow) -> Result<AuthState> {
+    if Instant::now() >= flow.expires_at {
+        return Err(anyhow!("Microsoft device code has expired"));
+    }
+
+    let response = flow
+        .client
+        .post(MSA_TOKEN_URL)
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(format!(
+            "grant_type={}&client_id={}&device_code={}",
+            form_component("urn:ietf:params:oauth:grant-type:device_code"),
+            form_component(AZURE_CLIENT_ID),
+            form_component(&flow.device_code),
+        ))
+        .send()
+        .await?;
+    let status = response.status();
+    let token: DeviceTokenResponse = response.json().await?;
+
+    if let Some(error) = token.error.as_deref() {
+        match error {
+            "authorization_pending" => {
+                return Ok(AuthState::Waiting(flow.interval));
+            }
+            "slow_down" => {
+                flow.interval += Duration::from_secs(5);
+                return Ok(AuthState::Waiting(flow.interval));
+            }
+            "access_denied" => return Err(anyhow!("Microsoft device authorization was denied")),
+            "expired_token" => return Err(anyhow!("Microsoft device code has expired")),
+            _ => {
+                let description = token.error_description.as_deref().unwrap_or(error);
+                return Err(anyhow!("Microsoft token request failed: {description}"));
             }
         }
-        WaitState::Finished => ((id, WaitProgress::Finished), WaitState::Finished),
     }
+
+    if !status.is_success() {
+        return Err(anyhow!(
+            "Microsoft token request failed with status {status}"
+        ));
+    }
+
+    let access_token = token
+        .access_token
+        .ok_or_else(|| anyhow!("Microsoft response did not contain an access token"))?;
+    let refresh_token = token
+        .refresh_token
+        .ok_or_else(|| anyhow!("Microsoft did not return a refresh token"))?;
+
+    Ok(AuthState::Authenticated(
+        minecraft_account(&access_token, refresh_token).await?,
+    ))
 }
 
-pub async fn login_to_xbox(access_token: String) -> XboxLiveData {
-    let client = Client::new();
-
-    // Xbox live
-    let xbox_live_response_request_data = json!({
-        "Properties": {
-            "AuthMethod": "RPS",
-            "SiteName": "user.auth.xboxlive.com",
-            "RpsTicket": &format!("d={}", access_token)
-        },
-        "RelyingParty": "http://auth.xboxlive.com",
-        "TokenType": "JWT"
-    });
-
-    let xbox_live_response = match client
-        .post("https://user.auth.xboxlive.com/user/authenticate")
-        .json(&xbox_live_response_request_data)
-        .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(e) => panic!("{e}"),
-    };
-
-    let xbox_live_response_json: Value = serde_json::from_str(&xbox_live_response).unwrap();
-
-    let xbox_live_token = xbox_live_response_json["Token"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
-    let user_hash = xbox_live_response_json["DisplayClaims"]["xui"][0]["uhs"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
-    // Xsts
-
-    let xbox_xsts_response_request_data = json!(
-        {
-            "Properties": {
-                "SandboxId": "RETAIL",
-                "UserTokens": [
-                    xbox_live_token
-                ]
-            },
-            "RelyingParty": "rp://api.minecraftservices.com/",
-            "TokenType": "JWT"
-         }
-    );
-
-    let xbox_xsts_response = match client
-        .post("https://xsts.auth.xboxlive.com/xsts/authorize")
-        .json(&xbox_xsts_response_request_data)
-        .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(e) => panic!("{e}"),
-    };
-
-    let xbox_xsts_response_json: Value = serde_json::from_str(&xbox_xsts_response).unwrap();
-
-    let xsts_token = xbox_xsts_response_json["Token"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
-    XboxLiveData {
-        xsts_token,
-        user_hash,
+pub async fn authenticate_with_refresh_token(refresh_token: &str) -> Result<AuthenticatedAccount> {
+    if refresh_token.is_empty() {
+        return Err(anyhow!("refresh token is empty"));
     }
+
+    let client = microsoft_client()?;
+    let http_client = OAuthHttpClient::new();
+    let token = client
+        .exchange_refresh_token(&RefreshToken::new(refresh_token.to_owned()))
+        .add_scope(Scope::new(MSA_SCOPE.to_owned()))
+        .request_async(&http_client)
+        .await?;
+    let next_refresh_token = token
+        .refresh_token()
+        .map(|value| value.secret().to_owned())
+        .unwrap_or_else(|| refresh_token.to_owned());
+
+    minecraft_account(token.access_token().secret(), next_refresh_token).await
 }
 
-pub async fn login_to_minecraft(xbox_data: XboxLiveData) -> MinecraftAccount {
-    let client = Client::new();
-
-    // Getting token
-    let minecraft_data_response_request_data = json!(
-        {
-        "identityToken": format!("XBL3.0 x={};{}", xbox_data.user_hash, xbox_data.xsts_token)
+pub async fn poll_device_flow_until_complete(mut flow: DeviceFlow) -> Result<AuthenticatedAccount> {
+    loop {
+        match poll_device_flow(&mut flow).await? {
+            AuthState::Code(_) => {}
+            AuthState::Waiting(interval) => {
+                tokio::time::sleep(interval).await;
+            }
+            AuthState::Authenticated(account) => {
+                return Ok(account);
+            }
+            AuthState::Error(err) => return Err(anyhow!("{err}")),
+            AuthState::Finished => return Err(anyhow!("Device flow finished unexpectedly")),
         }
-    );
-
-    let minecraft_data_response = match client
-        .post("https://api.minecraftservices.com/authentication/login_with_xbox")
-        .json(&minecraft_data_response_request_data)
-        .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(e) => panic!("{e}"),
-    };
-
-    let minecraft_data_json: Value = serde_json::from_str(&minecraft_data_response).unwrap();
-
-    let token = minecraft_data_json["access_token"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-
-    // Getting username and uuid
-
-    let mc_profile_response = match client
-        .get("https://api.minecraftservices.com/minecraft/profile")
-        .bearer_auth(token.clone())
-        .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(e) => panic!("{e}"),
-    };
-
-    let mc_profile_json: Value = serde_json::from_str(&mc_profile_response).unwrap();
-    let uuid = mc_profile_json["id"].as_str().unwrap().to_owned();
-    let username = mc_profile_json["name"].as_str().unwrap().to_owned();
-
-    MinecraftAccount {
-        username,
-        token,
-        uuid,
     }
 }
 
-// All in one, using a refresh_token. Used when launching the game.
-pub async fn login_with_refresh_token(refresh_token: String) -> Option<MinecraftAccount> {
-    let client = Client::new();
+#[derive(Debug, Deserialize)]
+struct MinecraftProfile {
+    id: String,
+    name: String,
+}
 
-    let response = match client
-        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
-        .form(&[
-            ("client_id", AZURE_CLIENT_ID),
-            ("scope", &"XboxLive.signin offline_access".to_string()),
-            ("grant_type", &"refresh_token".to_string()),
-            ("refresh_token", &refresh_token),
-        ])
+async fn minecraft_account(
+    microsoft_access_token: &str,
+    refresh_token: String,
+) -> Result<AuthenticatedAccount> {
+    let http = reqwest::Client::new();
+    let flow = MinecraftAuthorizationFlow::new(http.clone());
+    let account: MinecraftAuthenticationResponse = flow
+        .exchange_microsoft_token(microsoft_access_token)
+        .await?;
+
+    let profile_response = http
+        .get("https://api.minecraftservices.com/minecraft/profile")
+        .bearer_auth(account.access_token().as_ref())
         .send()
-        .await
-    {
-        Ok(ok) => ok.text().await.unwrap(),
-        Err(_) => return None,
-    };
+        .await?;
 
-    let response_json: Value = serde_json::from_str(&response).unwrap();
+    if !profile_response.status().is_success() {
+        return Err(anyhow!(
+            "Failed to fetch Minecraft profile (HTTP {}). Ensure this account owns Minecraft.",
+            profile_response.status()
+        ));
+    }
 
-    let access_token = response_json["access_token"].as_str().unwrap().to_owned();
+    let profile: MinecraftProfile = profile_response.json().await?;
+    let uuid = uuid::Uuid::parse_str(&profile.id)
+        .map(|parsed| parsed.to_string())
+        .unwrap_or(profile.id);
 
-    let xbox_data = login_to_xbox(access_token).await;
-
-    Some(login_to_minecraft(xbox_data).await)
+    Ok(AuthenticatedAccount {
+        minecraft_username: profile.name,
+        uuid,
+        minecraft_access_token: account.access_token().as_ref().to_owned(),
+        minecraft_token_expires_in: account.expires_in(),
+        refresh_token,
+    })
 }
