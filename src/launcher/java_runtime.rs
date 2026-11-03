@@ -4,18 +4,17 @@ use std::path::PathBuf;
 
 use crate::java::JavaType;
 
-pub fn detect_required_java(version_json: &Value) -> JavaType {
+pub fn detect_required_java(version_json: &Value) -> Option<JavaType> {
     let major = version_json["javaVersion"]["majorVersion"]
         .as_i64()
-        .or_else(|| version_json["javaVersion"]["Version"].as_i64())
-        .unwrap_or(0);
+        .or_else(|| version_json["javaVersion"]["Version"].as_i64())?;
 
-    match major {
+    Some(match major {
         v if v >= 25 => JavaType::Java25,
         v if v >= 21 => JavaType::Java21,
-        v if v > 8 || v == 0 => JavaType::Java17,
+        v if v > 8 => JavaType::Java17,
         _ => JavaType::Java8,
-    }
+    })
 }
 
 pub fn get_java_binary(java_type: &JavaType, custom_path: Option<&str>) -> Result<PathBuf> {

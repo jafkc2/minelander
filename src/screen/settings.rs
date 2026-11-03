@@ -99,6 +99,7 @@ impl Settings {
                 pick_list(
                     "Java version:",
                     [
+                        "Automatic".to_string(),
                         "Java 8".to_string(),
                         "Java 17".to_string(),
                         "Java 21".to_string(),
@@ -253,6 +254,7 @@ impl Settings {
     pub fn apply_to_config(&self, config: &mut Config) {
         config.ram_mib = self.ram_mib;
         config.java = match self.java.as_str() {
+            "Automatic" => JavaType::Automatic,
             "Java 8" => JavaType::Java8,
             "Java 17" => JavaType::Java17,
             "Java 21" => JavaType::Java21,
@@ -289,6 +291,7 @@ impl Settings {
 
 fn java_label(java: &JavaType) -> &'static str {
     match java {
+        JavaType::Automatic => "Automatic",
         JavaType::Java8 => "Java 8",
         JavaType::Java17 => "Java 17",
         JavaType::Java21 => "Java 21",

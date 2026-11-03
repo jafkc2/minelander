@@ -49,7 +49,7 @@ impl Config {
             theme: Themes::CatppuccinMocha,
             check_for_updates: false,
             ram_mib: 2048,
-            java: JavaType::Java17,
+            java: JavaType::Automatic,
             current_instance: String::new(),
             current_account: "".to_string(),
             current_version: "".to_string(),

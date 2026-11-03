@@ -19,12 +19,13 @@ use iced::{Element, Subscription, Task, Theme};
 use reqwest::Client;
 use shared_child::SharedChild;
 use std::path::Path;
-use std::{env, fs};
 use std::process::Command;
 use std::sync::Arc;
+use std::{env, fs};
 
 use crate::config::Config;
 use crate::downloader::{java_downloader, version_downloader};
+use crate::java::JavaType;
 use crate::messages::Message;
 use crate::screen::Screen;
 use crate::widgets::sidebar::{ActiveScreen, Sidebar};
@@ -62,6 +63,7 @@ struct Minelander {
     sidebar: widgets::sidebar::Sidebar,
     java_request: Option<crate::java::JavaType>,
     version_request: Option<version_downloader::VersionRequest>,
+    direct_download_files: Option<Vec<version_downloader::DownloadFile>>,
     available_versions: Option<version_downloader::AvailableVersions>,
     version_download_status: Option<String>,
     microsoft_login_state: Option<screen::account_manager::MicrosoftLoginState>,
@@ -110,6 +112,7 @@ impl Minelander {
                 sidebar: Sidebar::default(),
                 java_request: None,
                 version_request: None,
+                direct_download_files: None,
                 available_versions: None,
                 version_download_status: None,
                 microsoft_login_state: None,
@@ -164,16 +167,12 @@ impl Minelander {
                     }
                     widgets::sidebar::Message::UpdateClicked => {
                         if let Some((version, url)) = &self.available_update {
-                            self.update_status =
-                                Some(format!("Installing update v{}...", version));
-                            return Task::perform(
-                                updater::install_update(url.clone()),
-                                |result| {
-                                    Message::UpdateInstalled(
-                                        result.map_err(|error| format!("{error:#}")),
-                                    )
-                                },
-                            );
+                            self.update_status = Some(format!("Installing update v{}...", version));
+                            return Task::perform(updater::install_update(url.clone()), |result| {
+                                Message::UpdateInstalled(
+                                    result.map_err(|error| format!("{error:#}")),
+                                )
+                            });
                         }
                     }
                     widgets::sidebar::Message::ModsClicked => {
@@ -365,12 +364,21 @@ impl Minelander {
                     return Task::none();
                 }
 
+                let java_type = match crate::java::resolve_java_type(&self.config.java, &version) {
+                    Ok(java_type) => java_type,
+                    Err(error) => {
+                        self.set_home_status(format!(
+                            "Could not determine Java version: {error:#}"
+                        ));
+                        return Task::none();
+                    }
+                };
                 let settings = launcher::GameSettings {
                     account,
                     game_version: version.clone(),
                     ram_mib: self.config.ram_mib,
                     game_directory: self.config.current_instance.clone(),
-                    java_type: self.config.java.clone(),
+                    java_type: java_type.clone(),
                     custom_java_path: (!self.config.current_java.is_empty())
                         .then(|| self.config.current_java.clone()),
                     jvm_args: Vec::new(),
@@ -379,7 +387,7 @@ impl Minelander {
                 };
                 self.launch_settings = Some(settings);
 
-                if matches!(self.config.java, crate::java::JavaType::Custom) {
+                if matches!(java_type, JavaType::Custom) {
                     self.set_home_status("Using custom Java.");
                     return Task::perform(
                         async move { launcher::checker::check_version(&version).await },
@@ -387,7 +395,7 @@ impl Minelander {
                     );
                 }
 
-                self.java_request = Some(self.config.java.clone());
+                self.java_request = Some(java_type);
                 self.set_home_status("Preparing Java...");
                 Task::none()
             }
@@ -436,7 +444,10 @@ impl Minelander {
                     self.set_home_status("Downloading Minecraft files...");
                     Task::none()
                 }
-                Ok(launcher::checker::CheckResult::NeedsDownload { metadata, .. }) => {
+                Ok(launcher::checker::CheckResult::NeedsDownload {
+                    missing_files,
+                    metadata,
+                }) => {
                     println!("Minecraft files are missing. Downloading...");
                     let is_neoforge = metadata.neoforge_loader_version().is_some()
                         || metadata.main_class.contains("forgewrapper");
@@ -473,14 +484,10 @@ impl Minelander {
                             fabric_loader: Some(loader),
                             neoforge_loader: None,
                         })
-                    } else if metadata.inherits_from.is_some() {
-                        self.launch_settings = None;
-                        self.launch_ready = false;
-                        self.set_home_status("This version cannot be downloaded automatically.");
-                        return Task::none();
                     } else {
+                        self.direct_download_files = Some(missing_files);
                         Some(version_downloader::VersionRequest {
-                            version: base_version,
+                            version: configured_version,
                             version_type: version_downloader::VersionType::Vanilla,
                             fabric_loader: None,
                             neoforge_loader: None,
@@ -527,6 +534,7 @@ impl Minelander {
                     }
                     version_downloader::Progress::Finished => {
                         self.version_request = None;
+                        self.direct_download_files = None;
                         self.version_download_status = Some("Installation finished.".to_string());
                         let refresh_task = Task::perform(
                             minecraft::get_installed_versions(),
@@ -544,6 +552,7 @@ impl Minelander {
                     }
                     version_downloader::Progress::Errored(error) => {
                         self.version_request = None;
+                        self.direct_download_files = None;
                         let status = format!("Minecraft download error: {error}");
                         self.version_download_status = Some(status.clone());
                         if is_launching {
@@ -698,16 +707,12 @@ impl Minelander {
                         }
                         screen::about::Message::InstallUpdate => {
                             if let Some((_version, url)) = &self.available_update {
-                                self.update_status =
-                                    Some("Installing update...".to_string());
-                                Task::perform(
-                                    updater::install_update(url.clone()),
-                                    |result| {
-                                        Message::UpdateInstalled(
-                                            result.map_err(|error| format!("{error:#}")),
-                                        )
-                                    },
-                                )
+                                self.update_status = Some("Installing update...".to_string());
+                                Task::perform(updater::install_update(url.clone()), |result| {
+                                    Message::UpdateInstalled(
+                                        result.map_err(|error| format!("{error:#}")),
+                                    )
+                                })
                             } else {
                                 Task::none()
                             }
@@ -802,8 +807,7 @@ impl Minelander {
                 self.checking_for_updates = false;
                 match result {
                     Ok(Some((version, url))) => {
-                        self.update_status =
-                            Some(format!("Update v{} is available.", version));
+                        self.update_status = Some(format!("Update v{} is available.", version));
                         self.available_update = Some((version, url));
                     }
                     Ok(None) => {
@@ -919,9 +923,13 @@ impl Minelander {
             );
         }
         if let Some(request) = &self.version_request {
-            subscriptions.push(
+            let subscription = if let Some(files) = &self.direct_download_files {
+                version_downloader::download_files(request.clone(), files.clone())
+            } else {
                 version_downloader::download(request.clone())
-                    .map(|(request, progress)| Message::VersionDownload(request, progress)),
+            };
+            subscriptions.push(
+                subscription.map(|(request, progress)| Message::VersionDownload(request, progress)),
             );
         }
         if self.launch_ready {

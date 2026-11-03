@@ -170,14 +170,10 @@ async fn launcher(state: State) -> (Progress, State) {
                 libraries.append(&mut vanilla_libs);
             }
 
-            let vanilla_version = meta
-                .inherits_from
-                .as_deref()
-                .unwrap_or(&settings.game_version);
             let client_jar = mc_dir
                 .join("versions")
-                .join(vanilla_version)
-                .join(format!("{vanilla_version}.jar"));
+                .join(&settings.game_version)
+                .join(format!("{}.jar", settings.game_version));
 
             let classpath = library_builder::build_classpath(&libraries, &client_jar);
 
@@ -210,7 +206,11 @@ async fn launcher(state: State) -> (Progress, State) {
                 } else {
                     "msa".to_string()
                 },
-                game_version: vanilla_version.to_string(),
+                game_version: meta
+                    .inherits_from
+                    .as_deref()
+                    .unwrap_or(&settings.game_version)
+                    .to_string(),
                 version_type: "release".to_string(),
                 game_directory: game_dir.to_string_lossy().to_string(),
                 assets_root: mc_dir.join("assets").to_string_lossy().to_string(),
@@ -218,8 +218,11 @@ async fn launcher(state: State) -> (Progress, State) {
             };
 
             let mut game_args = Vec::new();
-            if let Some(ref vjson) = meta.vanilla_json {
-                game_args.extend(version_args::get_minecraft_args(vjson, &data));
+            let child_has_complete_game_arguments = meta.json["minecraftArguments"].is_string();
+            if !child_has_complete_game_arguments {
+                if let Some(ref vjson) = meta.vanilla_json {
+                    game_args.extend(version_args::get_minecraft_args(vjson, &data));
+                }
             }
             game_args.extend(version_args::get_minecraft_args(&meta.json, &data));
 

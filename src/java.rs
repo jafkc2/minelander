@@ -1,11 +1,15 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::minecraft::get_minelander_dir;
+use crate::{
+    launcher::{checker, java_runtime},
+    minecraft::{get_minelander_dir, get_minecraft_dir},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JavaType {
+    Automatic,
     Java8,
     Java17,
     Java21,
@@ -20,7 +24,7 @@ impl JavaType {
             Self::Java17 => Ok(17),
             Self::Java21 => Ok(21),
             Self::Java25 => Ok(25),
-            Self::Custom => Err(anyhow!("custom Java installations are not managed")),
+            _ => Err(anyhow!("Invalid JavaType"))
         }
     }
 
@@ -30,7 +34,7 @@ impl JavaType {
             Self::Java17 => Ok("java17"),
             Self::Java21 => Ok("java21"),
             Self::Java25 => Ok("java25"),
-            Self::Custom => Err(anyhow!("custom Java installations are not managed")),
+            _ => Err(anyhow!("Invalid JavaType"))
         }
     }
 
@@ -39,4 +43,20 @@ impl JavaType {
             .join("java")
             .join(self.directory_name()?))
     }
+}
+
+pub fn resolve_java_type(java_type: &JavaType, version: &str) -> Result<JavaType> {
+    if *java_type != JavaType::Automatic {
+        return Ok(java_type.clone());
+    }
+
+    let metadata = checker::load_version_metadata(Path::new(&get_minecraft_dir()), version)?;
+    Ok(java_runtime::detect_required_java(&metadata.json)
+        .or_else(|| {
+            metadata
+                .vanilla_json
+                .as_ref()
+                .and_then(java_runtime::detect_required_java)
+        })
+        .unwrap_or(JavaType::Java25))
 }

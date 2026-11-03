@@ -17,12 +17,6 @@ pub struct VersionMetadata {
 }
 
 impl VersionMetadata {
-    pub fn vanilla_version(&self, installed_version: &str) -> String {
-        self.inherits_from
-            .clone()
-            .unwrap_or_else(|| installed_version.to_string())
-    }
-
     pub fn fabric_loader_version(&self) -> Option<String> {
         self.json["libraries"]
             .as_array()?
@@ -135,31 +129,25 @@ pub async fn check_version(game_version: &str) -> Result<CheckResult> {
 
     let mut missing_files: Vec<DownloadFile> = Vec::new();
 
-    // Checks for client jar
-    let client_version = meta.vanilla_version(game_version);
-    let client_version_dir = mc_dir.join("versions").join(&client_version);
-    let client_jar_path = client_version_dir.join(format!("{}.jar", client_version));
-    let jar_is_valid = client_jar_path.is_file()
-        && fs::metadata(&client_jar_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false);
+    // Checks for client jar.
+    if meta.inherits_from.is_none() {
+        let client_jar_path = version_dir.join(format!("{}.jar", game_version));
+        let jar_is_valid = client_jar_path.is_file()
+            && fs::metadata(&client_jar_path)
+                .map(|m| m.len() > 0)
+                .unwrap_or(false);
 
-    if !jar_is_valid {
-        let client_download = meta.json["downloads"]["client"].as_object().or_else(|| {
-            meta.vanilla_json
-                .as_ref()
-                .and_then(|v| v["downloads"]["client"].as_object())
-        });
-
-        if let Some(client) = client_download {
-            if let Some(url) = client["url"].as_str() {
-                missing_files.push(DownloadFile {
-                    path: client_jar_path,
-                    url: url.to_string(),
-                    sha1: client["sha1"].as_str().map(String::from),
-                    size: client["size"].as_u64(),
-                    extract_natives: false,
-                });
+        if !jar_is_valid {
+            if let Some(client) = meta.json["downloads"]["client"].as_object() {
+                if let Some(url) = client["url"].as_str() {
+                    missing_files.push(DownloadFile {
+                        path: client_jar_path,
+                        url: url.to_string(),
+                        sha1: client["sha1"].as_str().map(String::from),
+                        size: client["size"].as_u64(),
+                        extract_natives: false,
+                    });
+                }
             }
         }
     }

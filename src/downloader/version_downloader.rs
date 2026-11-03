@@ -61,7 +61,7 @@ pub enum Progress {
     Errored(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct DownloadFile {
     pub path: PathBuf,
     pub url: String,
@@ -221,6 +221,13 @@ pub fn download(request: VersionRequest) -> Subscription<(VersionRequest, Progre
     Subscription::run_with(request, build_subscription)
 }
 
+pub fn download_files(
+    request: VersionRequest,
+    files: Vec<DownloadFile>,
+) -> Subscription<(VersionRequest, Progress)> {
+    Subscription::run_with((request, files), build_files_subscription)
+}
+
 fn build_subscription(
     request: &VersionRequest,
 ) -> impl iced::futures::Stream<Item = (VersionRequest, Progress)> + 'static {
@@ -230,6 +237,40 @@ fn build_subscription(
         if let Err(error) = result {
             let _ = output
                 .send((request.clone(), Progress::Errored(format!("{error:#}"))))
+                .await;
+        }
+    })
+}
+
+fn build_files_subscription(
+    input: &(VersionRequest, Vec<DownloadFile>),
+) -> impl iced::futures::Stream<Item = (VersionRequest, Progress)> + 'static {
+    let (request, files) = input.clone();
+    iced::stream::channel(32, async move |mut output| {
+        let client = Client::new();
+        let plan = DownloadPlan { files };
+        let result = async {
+            output
+                .send((
+                    request.clone(),
+                    Progress::Started {
+                        total: plan.files.len(),
+                    },
+                ))
+                .await
+                .map_err(|_| anyhow!("download subscription was cancelled"))?;
+            download_files_from_plan(&client, &plan, &request, &mut output).await?;
+            output
+                .send((request.clone(), Progress::Finished))
+                .await
+                .map_err(|_| anyhow!("download subscription was cancelled"))?;
+            Ok::<(), anyhow::Error>(())
+        }
+        .await;
+
+        if let Err(error) = result {
+            let _ = output
+                .send((request, Progress::Errored(format!("{error:#}"))))
                 .await;
         }
     })
@@ -247,7 +288,7 @@ async fn run_download(
         .await
         .map_err(|_| anyhow!("download subscription was cancelled"))?;
 
-    download_files(&client, &plan, &request, output).await?;
+    download_files_from_plan(&client, &plan, &request, output).await?;
     output
         .send((request, Progress::Finished))
         .await
@@ -526,7 +567,7 @@ fn download_file(
     })
 }
 
-async fn download_files(
+async fn download_files_from_plan(
     client: &Client,
     plan: &DownloadPlan,
     request: &VersionRequest,
