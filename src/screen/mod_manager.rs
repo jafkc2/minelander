@@ -1,5 +1,5 @@
 use iced::{
-    widget::{column, row, svg, text},
+    widget::{column, row, scrollable, svg, text},
     Element, Length, Task,
 };
 
@@ -110,26 +110,28 @@ impl ModManager {
             .padding(15)
             .width(Length::Fill),
         );
-
-        column![
-            text("Mods").size(50).height(50),
-            text("Manage the mods installed in your game.")
-                .size(20)
-                .height(50),
-            pick_list(
-                "Game instance:",
-                std::iter::once("Default".to_string())
-                    .chain(instances.iter().cloned())
-                    .collect::<Vec<_>>(),
-                Some(selected_instance.to_string()),
-                Message::InstanceSelected,
-            ),
-            actions_section.max_width(700),
-            container(mods_section.padding(15).spacing(10)).max_width(700),
-        ]
-        .width(Length::FillPortion(4))
-        .spacing(14)
-        .padding(6)
+        scrollable(
+            column![
+                text("Mods").size(50).height(50),
+                text("Manage the mods installed in your game.")
+                    .size(20)
+                    .height(50),
+                pick_list(
+                    "Game instance:",
+                    std::iter::once("Default".to_string())
+                        .chain(instances.iter().cloned())
+                        .collect::<Vec<_>>(),
+                    Some(selected_instance.to_string()),
+                    Message::InstanceSelected,
+                ),
+                actions_section.max_width(700),
+                container(mods_section.padding(15).spacing(10)).max_width(700),
+            ]
+            .width(Length::FillPortion(4))
+            .spacing(14)
+            .padding(6),
+        )
+        .height(Length::Fill)
         .into()
     }
 
