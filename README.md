@@ -1,26 +1,37 @@
-continuation of https://github.com/JafKC/siglauncher, as I lost my old account
-
 # Minelander
-This is Minelander, a Minecraft launcher made with Rust and the Iced GUI library. 
-The launcher is compatible with Vanilla, Fabric, and Forge, and is designed to run on both Windows and Linux.
+This is Minelander, a lightweight, minimalist Minecraft launcher made with Rust and the Iced GUI library. 
+
+<table border="0">
+  <tr>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/9455dc94-6b53-48b3-a226-b8a4295a3b13" alt="Minelander Screenshot 1" />
+    </td>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/89fd9de7-6334-4751-be5b-4f1575754605" alt="Minelander Screenshot 2" />
+    </td>
+  </tr>
+</table>
 
 ### Features
-* Simple and intuitive GUI.
+* Clean and intuitive UI.
 * Microsoft login.
-* Version installer.
-* Compatibility: works with any vanilla release, Fabric and Forge.
-* Instance system: useful for modpacks and for those who play in multiple versions.
-* Game performance: optimized Java flags.
+* Version management: easily install and manage versions.
+* Compatibility with any Minecraft version.
+* Instance system and mod management.
 * Works in offline mode.
-* No need to install Java, the launcher provides both Java 8 and Java 17.
+* Automatically downloads the required Java Runtime. No need to install it yourself.
+* Integrated Fabric and NeoForge installation.
 
-![image](https://github.com/user-attachments/assets/1631065a-b5da-41ea-8014-b68b91ad8493)
+### How to download
+
+Download available in [releases](https://github.com/Jafkc2/minelander/releases).
+
+
+------------------
 
 
 
-
-### Installation
-###### Build method
+### How to build
 Requires Git and Rust to be installed. Type the following commands:
 
 ```bash
@@ -33,13 +44,3 @@ cd minelander
 cargo build --release
 ```
 The executable will appear inside **target/release**.
-
-###### Release method
-Download from [releases](https://github.com/Jafkc2/minelander/releases).
-
-
-### Mods
-For mods, you can choose between [Fabric](https://fabricmc.net/) or [Forge](https://files.minecraftforge.net/net/minecraftforge/forge/). Download mods from [Mondrith](https://modrinth.com/mods) and paste them into the mods folder within your Minecraft directory.
-
-You can download Fabric versions from the launcher. If you want to use Forge then download it from [here](https://files.minecraftforge.net/net/minecraftforge/forge/).
-
