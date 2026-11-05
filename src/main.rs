@@ -19,7 +19,6 @@ use iced::{Element, Subscription, Task, Theme};
 use reqwest::Client;
 use shared_child::SharedChild;
 use std::path::Path;
-use std::process::Command;
 use std::sync::Arc;
 use std::{env, fs};
 
@@ -238,6 +237,12 @@ impl Minelander {
                     self.account = Some(accounts::Account::new_offline(username));
                     self.set_home_status("Account ready.");
                     Task::done(Message::LaunchStageCheckJava)
+                } else if self.account.as_ref().is_some_and(|account| {
+                    !account.offline && account.username == username
+                })
+                {
+                    self.set_home_status("Account ready.");
+                    Task::done(Message::LaunchStageCheckJava)
                 } else {
                     self.set_home_status("Authenticating Microsoft account...");
                     let refresh_token = match auth::get_refresh_token(&username) {
@@ -314,6 +319,12 @@ impl Minelander {
                                 });
                             }
 
+                            self.account = Some(accounts::Account {
+                                username: authenticated.minecraft_username.clone(),
+                                offline: false,
+                                uuid: authenticated.uuid.clone(),
+                                access_token: authenticated.minecraft_access_token.clone(),
+                            });
                             self.config.current_account = authenticated.minecraft_username;
                             if let Err(error) = self.config.save() {
                                 eprintln!("Failed to save config: {error:#}");
@@ -764,6 +775,13 @@ impl Minelander {
 
                             if self.config.current_account == username {
                                 self.config.current_account.clear();
+                            }
+                            if self
+                                .account
+                                .as_ref()
+                                .is_some_and(|account| account.username == username)
+                            {
+                                self.account = None;
                             }
 
                             if let Err(error) = self.config.save() {
