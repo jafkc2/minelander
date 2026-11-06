@@ -1,7 +1,7 @@
 use iced::{
     border::Radius,
     widget::{button, column, container, row, svg, text, Button},
-    Background, Border, Color, Element, Length, Renderer, Shadow, Task, Theme,
+    Background, Border, Color, Element, Length, Renderer, Shadow, Theme,
 };
 
 #[derive(Default)]
@@ -108,10 +108,6 @@ impl Sidebar {
         .height(Length::Fill)
         .padding(10)
         .into()
-    }
-
-    pub fn update(&mut self, message: Message) -> Task<Message> {
-        Task::none()
     }
 }
 

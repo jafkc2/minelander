@@ -1,5 +1,5 @@
 use iced::{
-    widget::{column, row, text, text_input},
+    widget::{column, row, scrollable, text, text_input},
     Element, Length, Task,
 };
 
@@ -189,18 +189,21 @@ impl Settings {
             .width(Length::Fill),
         );
 
-        column![
-            text("Settings").size(50).height(50),
-            text("Configure your game and launcher preferences.")
-                .size(20)
-                .height(50),
-            minecraft_section.max_width(700),
-            minelander_section.max_width(700),
-            system_section.max_width(700),
-        ]
-        .width(Length::FillPortion(4))
-        .spacing(14)
-        .padding(6)
+        scrollable(
+            column![
+                text("Settings").size(50).height(50),
+                text("Configure your game and launcher preferences.")
+                    .size(20)
+                    .height(50),
+                minecraft_section.max_width(700),
+                minelander_section.max_width(700),
+                system_section.max_width(700),
+            ]
+            .width(Length::FillPortion(4))
+            .spacing(14)
+            .padding(6),
+        )
+        .height(Length::Fill)
         .into()
     }
 
