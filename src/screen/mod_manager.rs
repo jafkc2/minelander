@@ -88,7 +88,7 @@ impl ModManager {
                 text("Manage mods").size(22),
                 row![
                     button(
-                        text("Add mod").width(Length::Fill),
+                        text("Add mods").width(Length::Fill),
                         Some(svg::Handle::from_memory(include_bytes!(
                             "../../assets/icons/folder.svg"
                         ))),
@@ -138,13 +138,26 @@ impl ModManager {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::AddMod => {
-                if let Some(path) = rfd::FileDialog::new()
+                let paths = rfd::FileDialog::new()
                     .add_filter("Mod files", &["jar", "zip"])
-                    .pick_file()
-                {
-                    match mods::add(&self.instance, &path) {
-                        Ok(()) => self.reload("Mod added."),
-                        Err(error) => self.status = Some(format!("Failed to add mod: {error}")),
+                    .pick_files();
+                if let Some(paths) = paths {
+                    let mut added = 0;
+                    let mut errors = Vec::new();
+                    for path in paths {
+                        match mods::add(&self.instance, &path) {
+                            Ok(()) => added += 1,
+                            Err(error) => errors.push(format!("{}: {error}", path.display())),
+                        }
+                    }
+
+                    if errors.is_empty() {
+                        self.reload(&format!("{added} mod(s) added."));
+                    } else {
+                        self.reload(&format!(
+                            "{added} mod(s) added. Failed to add: {}",
+                            errors.join("; ")
+                        ));
                     }
                 }
             }
