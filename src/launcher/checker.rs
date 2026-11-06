@@ -130,24 +130,26 @@ pub async fn check_version(game_version: &str) -> Result<CheckResult> {
     let mut missing_files: Vec<DownloadFile> = Vec::new();
 
     // Checks for client jar.
-    if meta.inherits_from.is_none() {
-        let client_jar_path = version_dir.join(format!("{}.jar", game_version));
-        let jar_is_valid = client_jar_path.is_file()
-            && fs::metadata(&client_jar_path)
-                .map(|m| m.len() > 0)
-                .unwrap_or(false);
+    let client_json = meta
+        .vanilla_json
+        .as_ref()
+        .unwrap_or(&meta.json);
+    let client_jar_path = version_dir.join(format!("{}.jar", game_version));
+    let jar_is_valid = client_jar_path.is_file()
+        && fs::metadata(&client_jar_path)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false);
 
-        if !jar_is_valid {
-            if let Some(client) = meta.json["downloads"]["client"].as_object() {
-                if let Some(url) = client["url"].as_str() {
-                    missing_files.push(DownloadFile {
-                        path: client_jar_path,
-                        url: url.to_string(),
-                        sha1: client["sha1"].as_str().map(String::from),
-                        size: client["size"].as_u64(),
-                        extract_natives: false,
-                    });
-                }
+    if !jar_is_valid {
+        if let Some(client) = client_json["downloads"]["client"].as_object() {
+            if let Some(url) = client["url"].as_str() {
+                missing_files.push(DownloadFile {
+                    path: client_jar_path,
+                    url: url.to_string(),
+                    sha1: client["sha1"].as_str().map(String::from),
+                    size: client["size"].as_u64(),
+                    extract_natives: false,
+                });
             }
         }
     }

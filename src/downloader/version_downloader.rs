@@ -339,8 +339,14 @@ pub async fn create_plan(client: &Client, request: &VersionRequest) -> Result<Do
     let client_download = vanilla.json["downloads"]["client"]
         .as_object()
         .ok_or_else(|| anyhow!("version has no client download"))?;
+    let client_jar_path = match request.version_type {
+        VersionType::NeoForge => version_dir.join(format!("{version_name}.jar")),
+        VersionType::Vanilla | VersionType::Fabric => {
+            vanilla_dir.join(format!("{}.jar", request.version))
+        }
+    };
     files.push(download_file(
-        &vanilla_dir.join(format!("{}.jar", request.version)),
+        &client_jar_path,
         client_download,
         false,
     )?);

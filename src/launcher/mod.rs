@@ -195,6 +195,16 @@ async fn launcher(state: State) -> (Progress, State) {
                 );
                 version_jvm_args.extend(v_jvm_args);
             }
+            if meta.neoforge_loader_version().is_some() {
+                let minecraft_jar = mc_dir
+                    .join("versions")
+                    .join(&settings.game_version)
+                    .join(format!("{}.jar", settings.game_version));
+                version_jvm_args.push(format!(
+                    "-Dforgewrapper.minecraft={}",
+                    minecraft_jar.to_string_lossy()
+                ));
+            }
 
             // minecraft args
             let data = MinecraftData {
